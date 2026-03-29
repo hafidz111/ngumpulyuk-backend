@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+.env
+.env.*
+venv/
+env/
+ENV/
+
+# Django
+*.log
+db.sqlite3
+media/
+staticfiles/
+
+# Secrets
+*.env
+
+# VSCode / IDE
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# PyCharm
+*.iml
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Migrations (optional, biasanya tetap disimpan)
+# */migrations/*
+# !*/migrations/__init__.py
+
+# Node (kalau ada React di repo yang sama)
+node_modules/
+dist/
+build/
+
+# Logs
+*.log
+
+# Temporary files
+*.swp
+*.swo
