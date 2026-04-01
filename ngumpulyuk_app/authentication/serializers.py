@@ -137,3 +137,38 @@ class LogoutUserSerializer(serializers.Serializer):
             token.blacklist()
         except TokenError:
             return self.fail('bad_token')
+
+
+def user_me_dict(user):
+    """Shape for GET/PUT /users/me. date_of_birth & gender diisi setelah onboarding."""
+    dob = getattr(user, "date_of_birth", None)
+    created = getattr(user, "created_at", None) or getattr(user, "date_joined", None)
+    return {
+        "id": str(user.id),
+        "email": user.email,
+        "username": getattr(user, "username", None),
+        "full_name": user.full_name,
+        "phone": getattr(user, "phone", None),
+        "date_of_birth": dob.isoformat() if dob else None,
+        "gender": getattr(user, "gender", None),
+        "bio": getattr(user, "bio", None),
+        "profile_picture": getattr(user, "profile_picture", None),
+        "location": getattr(user, "location", None),
+        "onboarding_completed": getattr(user, "onboarding_completed", False),
+        "is_verified": user.is_verified,
+        "created_at": created.isoformat().replace("+00:00", "Z") if created else None,
+    }
+
+
+def user_public_dict(user):
+    """Shape for GET /users/:username (public profile)."""
+    created = getattr(user, "created_at", None) or getattr(user, "date_joined", None)
+    return {
+        "id": str(user.id),
+        "username": getattr(user, "username", None),
+        "full_name": user.full_name,
+        "bio": getattr(user, "bio", None),
+        "profile_picture": getattr(user, "profile_picture", None),
+        "location": getattr(user, "location", None),
+        "created_at": created.isoformat().replace("+00:00", "Z") if created else None,
+    }

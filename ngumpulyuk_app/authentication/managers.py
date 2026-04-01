@@ -1,6 +1,9 @@
+import re
+
 from django.contrib.auth.models import BaseUserManager
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
+from django.utils.crypto import get_random_string
 from django.utils.translation import gettext_lazy as _
 
 class UserManager(BaseUserManager):
@@ -19,7 +22,16 @@ class UserManager(BaseUserManager):
             raise ValueError(_("Email harus diisi"))
         if not full_name:
             raise ValueError(_("Nama harus diisi"))
-        user=self.model(email=email, full_name=full_name, **extra_fields)
+        if not extra_fields.get("username"):
+            base = re.sub(r"[^a-zA-Z0-9_]", "_", (email or "").split("@")[0])[:30] or "user"
+            base = base.strip("_") or "user"
+            username = base
+            for _ in range(200):
+                if not self.model.objects.filter(username=username).exists():
+                    break
+                username = f"{base[:18]}_{get_random_string(8)}"
+            extra_fields["username"] = username
+        user = self.model(email=email, full_name=full_name, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
         return user

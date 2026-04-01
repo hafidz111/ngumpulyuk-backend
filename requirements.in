@@ -4,7 +4,10 @@ django-cors-headers
 django-environ
 djangorestframework
 djangorestframework-simplejwt
+drf-spectacular
 PyJWT
 pytz
 sqlparse
 tzdata
+google-auth
+requests

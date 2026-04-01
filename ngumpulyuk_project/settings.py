@@ -30,7 +30,7 @@ SECRET_KEY = env('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env('DEBUG')
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1', 'testserver'])
 
 FRONTEND_URL = env('FRONTEND_URL')
 
@@ -50,6 +50,13 @@ CORS_ALLOW_HEADERS = [
 
 INSTALLED_APPS = [
     'ngumpulyuk_app.authentication.apps.AuthenticationConfig',
+    'ngumpulyuk_app.common.apps.CommonConfig',
+    'ngumpulyuk_app.users.apps.UsersConfig',
+    'ngumpulyuk_app.events.apps.EventsConfig',
+    'ngumpulyuk_app.communities.apps.CommunitiesConfig',
+    'ngumpulyuk_app.discussions.apps.DiscussionsConfig',
+    'ngumpulyuk_app.notifications.apps.NotificationsConfig',
+    'ngumpulyuk_app.recommendations.apps.RecommendationsConfig',
     'ngumpulyuk_app.social_accounts.apps.SocialAccountsConfig',
     'rest_framework',
     'django.contrib.admin',
@@ -60,7 +67,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'corsheaders',
     'rest_framework_simplejwt',
-    'rest_framework_simplejwt.token_blacklist'
+    'rest_framework_simplejwt.token_blacklist',
+    'drf_spectacular',
 ]
 
 MIDDLEWARE = [
@@ -79,7 +87,7 @@ ROOT_URLCONF = 'ngumpulyuk_project.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -99,10 +107,10 @@ WSGI_APPLICATION = 'ngumpulyuk_project.wsgi.application'
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': env.db(
+        'DATABASE_URL',
+        default='sqlite:///' + str(BASE_DIR / 'db.sqlite3'),
+    )
 }
 
 AUTH_USER_MODEL="authentication.User"
@@ -110,7 +118,51 @@ AUTH_USER_MODEL="authentication.User"
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-    )
+    ),
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_THROTTLE_CLASSES': (
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ),
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/minute',
+        'user': '500/minute',
+    },
+    'EXCEPTION_HANDLER': 'ngumpulyuk_app.common.exceptions.custom_exception_handler',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'NgumpulYuk API',
+    'DESCRIPTION': 'REST API untuk platform NgumpulYuk (events, communities, threads, notifications). '
+    'Gunakan **Authorize** dan skema Bearer: `Bearer <access_token>`.',
+    'VERSION': '1.0.0',
+    # Path API di-mount di /api/v1 — di schema ditampilkan tanpa prefix ini (bukan mengelompokkan tag "v1").
+    'SCHEMA_PATH_PREFIX': '/api/v1',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
+    'SWAGGER_UI_SETTINGS': {
+        'persistAuthorization': True,
+        'displayRequestDuration': True,
+    },
+    'APPEND_COMPONENTS': {
+        'securitySchemes': {
+            'BearerAuth': {
+                'type': 'http',
+                'scheme': 'bearer',
+                'bearerFormat': 'JWT',
+                'description': 'JWT access token dari POST /auth/login/ atau /auth/register/ (path relatif setelah prefix /api/v1).',
+            }
+        }
+    },
+    'TAGS': [
+        {'name': 'Authentication', 'description': 'Register, login, refresh & logout JWT'},
+        {'name': 'Users', 'description': 'Profil pengguna, onboarding, riwayat aktivitas'},
+        {'name': 'Events', 'description': 'Event, peserta, join/leave'},
+        {'name': 'Communities', 'description': 'Komunitas, anggota, thread di dalam komunitas'},
+        {'name': 'Discussions', 'description': 'Thread, komentar, suka'},
+        {'name': 'Notifications', 'description': 'Notifikasi pengguna'},
+        {'name': 'Recommendations', 'description': 'Rekomendasi event (AI/heuristik)'},
+    ],
 }
 
 SIMPLE_JWT = {
