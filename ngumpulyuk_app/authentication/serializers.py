@@ -37,16 +37,21 @@ class UserRegisterSerializer(serializers.ModelSerializer):
 class VerifyEmailSerializer(serializers.Serializer):
     otp = serializers.CharField(max_length=6, min_length=4)
 
+
+class ResendVerificationSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
 class LoginSerializer(serializers.ModelSerializer):
     email=serializers.EmailField(max_length=255, min_length=6)
     password=serializers.CharField(max_length=68, write_only=True)
     full_name=serializers.CharField(max_length=255, read_only=True)
+    onboarding_completed=serializers.BooleanField(read_only=True)
     access_token=serializers.CharField(max_length=255, read_only=True)
     refresh_token=serializers.CharField(max_length=255, read_only=True)
 
     class Meta:
         model=User
-        fields=['email', 'password', 'full_name', 'access_token', 'refresh_token']
+        fields=['email', 'password', 'full_name', 'onboarding_completed', 'access_token', 'refresh_token']
 
     def validate(self, attrs):
         email=attrs.get('email')
@@ -64,6 +69,7 @@ class LoginSerializer(serializers.ModelSerializer):
         return {
             'email': user.email,
             'full_name': user.get_full_name,
+            'onboarding_completed': user.onboarding_completed,
             'access_token': str(user_tokens.get('access')),
             'refresh_token': str(user_tokens.get('refresh'))
         }
@@ -140,8 +146,10 @@ class LogoutUserSerializer(serializers.Serializer):
 
 
 def user_me_dict(user):
-    """Shape for GET/PUT /users/me. date_of_birth & gender diisi setelah onboarding."""
+    """Shape for GET/PUT /users/me. date_of_birth & gender null sampai onboarding."""
     dob = getattr(user, "date_of_birth", None)
+    raw_gender = getattr(user, "gender", None)
+    gender = raw_gender if raw_gender else None
     created = getattr(user, "created_at", None) or getattr(user, "date_joined", None)
     return {
         "id": str(user.id),
@@ -150,7 +158,7 @@ def user_me_dict(user):
         "full_name": user.full_name,
         "phone": getattr(user, "phone", None),
         "date_of_birth": dob.isoformat() if dob else None,
-        "gender": getattr(user, "gender", None),
+        "gender": gender,
         "bio": getattr(user, "bio", None),
         "profile_picture": getattr(user, "profile_picture", None),
         "location": getattr(user, "location", None),

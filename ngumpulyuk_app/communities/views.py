@@ -4,7 +4,10 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 
+from ngumpulyuk_app.communities.serializers import CommunityWriteSerializer, ThreadWriteSerializer
 from ngumpulyuk_app.common.api_response import err, ok
+from ngumpulyuk_app.common.openapi_params import path_uuid, q_int, q_str
+from ngumpulyuk_app.common.openapi_responses import R200, R201
 from ngumpulyuk_app.common.presenters import (
     clamp_limit,
     clamp_offset,
@@ -17,6 +20,14 @@ from ngumpulyuk_app.discussions.models import Thread
 from ngumpulyuk_app.users.models import ActivityHistory
 
 COMMUNITIES_TAG = ["Communities"]
+
+_COMMUNITY_LIST_PARAMS = [
+    q_str("category", "Filter kategori"),
+    q_str("search", "Cari nama / deskripsi"),
+    q_str("verified", "true / false — komunitas terverifikasi"),
+    q_int("limit", "Jumlah item (default 20, max 100)", 20),
+    q_int("offset", "Skip N item", 0),
+]
 
 
 def community_dict(c, request_user, detail=False):
@@ -75,8 +86,18 @@ def thread_dict(t, request_user):
 
 
 @extend_schema_view(
-    get=extend_schema(tags=COMMUNITIES_TAG, summary="Daftar komunitas"),
-    post=extend_schema(tags=COMMUNITIES_TAG, summary="Buat komunitas"),
+    get=extend_schema(
+        tags=COMMUNITIES_TAG,
+        summary="Daftar komunitas",
+        parameters=_COMMUNITY_LIST_PARAMS,
+        responses=R200,
+    ),
+    post=extend_schema(
+        tags=COMMUNITIES_TAG,
+        summary="Buat komunitas",
+        request=CommunityWriteSerializer,
+        responses=R201,
+    ),
 )
 class CommunityListCreateView(APIView):
     def get_permissions(self):
@@ -107,17 +128,15 @@ class CommunityListCreateView(APIView):
         return ok({"communities": communities, **pagination_meta(total, limit, offset)})
 
     def post(self, request):
-        name = request.data.get("name")
-        description = request.data.get("description")
-        category = request.data.get("category")
-        if not name or not description or not category:
-            return err("VALIDATION_ERROR", "name, description, category required", status.HTTP_422_UNPROCESSABLE_ENTITY)
+        ser = CommunityWriteSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        v = ser.validated_data
         c = Community.objects.create(
-            name=name,
-            description=description,
-            category=category,
-            cover_image=request.data.get("cover_image"),
-            logo=request.data.get("logo"),
+            name=v["name"],
+            description=v["description"],
+            category=v["category"],
+            cover_image=v.get("cover_image") or None,
+            logo=v.get("logo") or None,
             creator=request.user,
         )
         ActivityHistory.objects.create(
@@ -131,7 +150,12 @@ class CommunityListCreateView(APIView):
 
 
 @extend_schema_view(
-    get=extend_schema(tags=COMMUNITIES_TAG, summary="Detail komunitas"),
+    get=extend_schema(
+        tags=COMMUNITIES_TAG,
+        summary="Detail komunitas",
+        parameters=[path_uuid("id", "ID komunitas")],
+        responses=R200,
+    ),
 )
 class CommunityDetailView(APIView):
     permission_classes = [AllowAny]
@@ -146,7 +170,13 @@ class CommunityDetailView(APIView):
 
 
 @extend_schema_view(
-    post=extend_schema(tags=COMMUNITIES_TAG, summary="Gabung komunitas"),
+    post=extend_schema(
+        tags=COMMUNITIES_TAG,
+        summary="Gabung komunitas",
+        parameters=[path_uuid("id", "ID komunitas")],
+        request=None,
+        responses=R200,
+    ),
 )
 class CommunityJoinView(APIView):
     permission_classes = [IsAuthenticated]
@@ -172,7 +202,12 @@ class CommunityJoinView(APIView):
 
 
 @extend_schema_view(
-    delete=extend_schema(tags=COMMUNITIES_TAG, summary="Keluar komunitas"),
+    delete=extend_schema(
+        tags=COMMUNITIES_TAG,
+        summary="Keluar komunitas",
+        parameters=[path_uuid("id", "ID komunitas")],
+        responses=R200,
+    ),
 )
 class CommunityLeaveView(APIView):
     permission_classes = [IsAuthenticated]
@@ -188,7 +223,17 @@ class CommunityLeaveView(APIView):
 
 
 @extend_schema_view(
-    get=extend_schema(tags=COMMUNITIES_TAG, summary="Daftar anggota komunitas"),
+    get=extend_schema(
+        tags=COMMUNITIES_TAG,
+        summary="Daftar anggota komunitas",
+        parameters=[
+            path_uuid("id", "ID komunitas"),
+            q_str("role", "admin | moderator | member"),
+            q_int("limit", "Jumlah item (default 50, max 100)", 50),
+            q_int("offset", "Skip N item", 0),
+        ],
+        responses=R200,
+    ),
 )
 class CommunityMembersView(APIView):
     permission_classes = [AllowAny]
@@ -222,8 +267,24 @@ class CommunityMembersView(APIView):
 
 
 @extend_schema_view(
-    get=extend_schema(tags=COMMUNITIES_TAG, summary="Thread di komunitas"),
-    post=extend_schema(tags=COMMUNITIES_TAG, summary="Buat thread di komunitas (anggota)"),
+    get=extend_schema(
+        tags=COMMUNITIES_TAG,
+        summary="Thread di komunitas",
+        parameters=[
+            path_uuid("id", "ID komunitas"),
+            q_str("sort", "latest | popular (default latest)"),
+            q_int("limit", "Jumlah item (default 20, max 100)", 20),
+            q_int("offset", "Skip N item", 0),
+        ],
+        responses=R200,
+    ),
+    post=extend_schema(
+        tags=COMMUNITIES_TAG,
+        summary="Buat thread di komunitas (anggota)",
+        parameters=[path_uuid("id", "ID komunitas")],
+        request=ThreadWriteSerializer,
+        responses=R201,
+    ),
 )
 class CommunityThreadsView(APIView):
     def get_permissions(self):
@@ -257,17 +318,15 @@ class CommunityThreadsView(APIView):
             return err("NOT_FOUND", "Community not found", status.HTTP_404_NOT_FOUND)
         if not CommunityMember.objects.filter(community=c, user=request.user).exists():
             return err("FORBIDDEN", "Join the community first", status.HTTP_403_FORBIDDEN)
-        title = request.data.get("title")
-        content = request.data.get("content")
-        images = request.data.get("images") or []
-        if not content:
-            return err("VALIDATION_ERROR", "content required", status.HTTP_422_UNPROCESSABLE_ENTITY)
+        ser = ThreadWriteSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        v = ser.validated_data
         t = Thread.objects.create(
             community=c,
             author=request.user,
-            title=title or "",
-            content=content,
-            images=images,
+            title=(v.get("title") or "").strip() or "",
+            content=v["content"],
+            images=v.get("images") or [],
         )
         ActivityHistory.objects.create(
             user=request.user,

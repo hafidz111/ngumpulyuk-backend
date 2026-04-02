@@ -1,4 +1,8 @@
 from drf_spectacular.utils import extend_schema, extend_schema_view
+
+from ngumpulyuk_app.common.openapi_params import path_uuid, q_int
+from ngumpulyuk_app.common.openapi_responses import R200, R201
+from ngumpulyuk_app.discussions.serializers import CommentWriteSerializer
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
@@ -12,8 +16,23 @@ DISCUSSIONS_TAG = ["Discussions"]
 
 
 @extend_schema_view(
-    get=extend_schema(tags=DISCUSSIONS_TAG, summary="Komentar thread"),
-    post=extend_schema(tags=DISCUSSIONS_TAG, summary="Tambah komentar"),
+    get=extend_schema(
+        tags=DISCUSSIONS_TAG,
+        summary="Komentar thread",
+        parameters=[
+            path_uuid("id", "ID thread"),
+            q_int("limit", "Jumlah item (default 50, max 100)", 50),
+            q_int("offset", "Skip N item", 0),
+        ],
+        responses=R200,
+    ),
+    post=extend_schema(
+        tags=DISCUSSIONS_TAG,
+        summary="Tambah komentar",
+        parameters=[path_uuid("id", "ID thread")],
+        request=CommentWriteSerializer,
+        responses=R201,
+    ),
 )
 class ThreadCommentsView(APIView):
     def get_permissions(self):
@@ -57,10 +76,9 @@ class ThreadCommentsView(APIView):
             t = Thread.objects.get(pk=id)
         except Thread.DoesNotExist:
             return err("NOT_FOUND", "Thread not found", status.HTTP_404_NOT_FOUND)
-        content = request.data.get("content")
-        if not content:
-            return err("VALIDATION_ERROR", "content required", status.HTTP_422_UNPROCESSABLE_ENTITY)
-        c = Comment.objects.create(thread=t, author=request.user, content=content)
+        ser = CommentWriteSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        c = Comment.objects.create(thread=t, author=request.user, content=ser.validated_data["content"])
         label = (t.title or "").strip() or str(t.id)[:8]
         ActivityHistory.objects.create(
             user=request.user,
@@ -84,8 +102,19 @@ class ThreadCommentsView(APIView):
 
 
 @extend_schema_view(
-    post=extend_schema(tags=DISCUSSIONS_TAG, summary="Suka thread"),
-    delete=extend_schema(tags=DISCUSSIONS_TAG, summary="Batal suka thread"),
+    post=extend_schema(
+        tags=DISCUSSIONS_TAG,
+        summary="Suka thread",
+        parameters=[path_uuid("id", "ID thread")],
+        request=None,
+        responses=R200,
+    ),
+    delete=extend_schema(
+        tags=DISCUSSIONS_TAG,
+        summary="Batal suka thread",
+        parameters=[path_uuid("id", "ID thread")],
+        responses=R200,
+    ),
 )
 class ThreadLikeView(APIView):
     permission_classes = [IsAuthenticated]
@@ -107,7 +136,13 @@ class ThreadLikeView(APIView):
 
 
 @extend_schema_view(
-    post=extend_schema(tags=DISCUSSIONS_TAG, summary="Suka komentar"),
+    post=extend_schema(
+        tags=DISCUSSIONS_TAG,
+        summary="Suka komentar",
+        parameters=[path_uuid("id", "ID komentar")],
+        request=None,
+        responses=R200,
+    ),
 )
 class CommentLikeView(APIView):
     permission_classes = [IsAuthenticated]

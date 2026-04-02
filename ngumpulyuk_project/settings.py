@@ -139,6 +139,10 @@ SPECTACULAR_SETTINGS = {
     # Path API di-mount di /api/v1 — di schema ditampilkan tanpa prefix ini (bukan mengelompokkan tag "v1").
     'SCHEMA_PATH_PREFIX': '/api/v1',
     'SERVE_INCLUDE_SCHEMA': False,
+    # Satukan jwtAuth (SimpleJWT) + BearerAuth agar Swagger "Authorize" satu kali berlaku semua.
+    'POSTPROCESSING_HOOKS': [
+        'ngumpulyuk_app.common.spectacular_hooks.use_bearer_auth_only',
+    ],
     'COMPONENT_SPLIT_REQUEST': True,
     'SWAGGER_UI_SETTINGS': {
         'persistAuthorization': True,

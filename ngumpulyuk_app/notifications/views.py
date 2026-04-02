@@ -1,4 +1,7 @@
 from drf_spectacular.utils import extend_schema, extend_schema_view
+
+from ngumpulyuk_app.common.openapi_params import path_uuid, q_int, q_str
+from ngumpulyuk_app.common.openapi_responses import R200
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
@@ -11,7 +14,17 @@ NOTIFICATIONS_TAG = ["Notifications"]
 
 
 @extend_schema_view(
-    get=extend_schema(tags=NOTIFICATIONS_TAG, summary="Daftar notifikasi"),
+    get=extend_schema(
+        tags=NOTIFICATIONS_TAG,
+        summary="Daftar notifikasi",
+        parameters=[
+            q_str("is_read", "true / false"),
+            q_str("type", "event_reminder | new_event | event_update | community_post | comment_reply | new_member | event_full"),
+            q_int("limit", "Jumlah item (default 20, max 100)", 20),
+            q_int("offset", "Skip N item", 0),
+        ],
+        responses=R200,
+    ),
 )
 class NotificationsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -55,7 +68,13 @@ class NotificationsView(APIView):
 
 
 @extend_schema_view(
-    put=extend_schema(tags=NOTIFICATIONS_TAG, summary="Tandai notifikasi dibaca"),
+    put=extend_schema(
+        tags=NOTIFICATIONS_TAG,
+        summary="Tandai notifikasi dibaca",
+        parameters=[path_uuid("id", "ID notifikasi")],
+        request=None,
+        responses=R200,
+    ),
 )
 class NotificationReadView(APIView):
     permission_classes = [IsAuthenticated]
@@ -68,7 +87,12 @@ class NotificationReadView(APIView):
 
 
 @extend_schema_view(
-    put=extend_schema(tags=NOTIFICATIONS_TAG, summary="Tandai semua notifikasi dibaca"),
+    put=extend_schema(
+        tags=NOTIFICATIONS_TAG,
+        summary="Tandai semua notifikasi dibaca",
+        request=None,
+        responses=R200,
+    ),
 )
 class NotificationsReadAllView(APIView):
     permission_classes = [IsAuthenticated]

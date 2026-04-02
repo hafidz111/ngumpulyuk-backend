@@ -2,6 +2,9 @@ from datetime import datetime
 
 from django.contrib.auth import get_user_model
 from drf_spectacular.utils import extend_schema, extend_schema_view
+
+from ngumpulyuk_app.common.openapi_params import path_str, q_int
+from ngumpulyuk_app.common.openapi_responses import R200
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
@@ -22,8 +25,13 @@ USERS_TAG = ["Users"]
 
 
 @extend_schema_view(
-    get=extend_schema(tags=USERS_TAG, summary="Profil saya (GET)"),
-    put=extend_schema(tags=USERS_TAG, summary="Update profil saya (PUT)"),
+    get=extend_schema(tags=USERS_TAG, summary="Profil saya (GET)", responses=R200),
+    put=extend_schema(
+        tags=USERS_TAG,
+        summary="Update profil saya (PUT)",
+        request=UserProfileUpdateSerializer,
+        responses=R200,
+    ),
 )
 class MeView(APIView):
     permission_classes = [IsAuthenticated]
@@ -47,7 +55,12 @@ class MeView(APIView):
 
 
 @extend_schema_view(
-    post=extend_schema(tags=USERS_TAG, summary="Selesaikan onboarding"),
+    post=extend_schema(
+        tags=USERS_TAG,
+        summary="Selesaikan onboarding",
+        request=OnboardingSerializer,
+        responses=R200,
+    ),
 )
 class OnboardingView(APIView):
     permission_classes = [IsAuthenticated]
@@ -64,21 +77,31 @@ class OnboardingView(APIView):
             u.date_of_birth = dob
         u.gender = pd["gender"]
         u.onboarding_completed = True
+        pr = ser.validated_data.get("preferences")
+        if pr is not None:
+            loc = pr.get("preferred_location")
+            if loc is not None and str(loc).strip():
+                u.location = str(loc).strip()[:100]
         u.save()
         UserInterest.objects.filter(user=u).delete()
         for name in ser.validated_data["interests"]:
             UserInterest.objects.get_or_create(user=u, interest_name=name)
-        prefs = ser.validated_data["preferences"]
         pref_obj, _ = UserPreferences.objects.get_or_create(user=u)
-        pref_obj.preferred_days = prefs.get("preferred_days")
-        pref_obj.preferred_time = prefs.get("preferred_time")
-        pref_obj.preferred_location = prefs.get("preferred_location")
+        if pr is not None:
+            pref_obj.preferred_days = pr.get("preferred_days")
+            pref_obj.preferred_time = pr.get("preferred_time")
+            pref_obj.preferred_location = pr.get("preferred_location")
         pref_obj.save()
         return ok({"onboarding_completed": True}, message="Onboarding completed")
 
 
 @extend_schema_view(
-    get=extend_schema(tags=USERS_TAG, summary="Profil publik by username"),
+    get=extend_schema(
+        tags=USERS_TAG,
+        summary="Profil publik by username",
+        parameters=[path_str("username", "Username unik pengguna")],
+        responses=R200,
+    ),
 )
 class UserByUsernameView(APIView):
     permission_classes = [AllowAny]
@@ -94,7 +117,15 @@ class UserByUsernameView(APIView):
 
 
 @extend_schema_view(
-    get=extend_schema(tags=USERS_TAG, summary="Riwayat aktivitas saya"),
+    get=extend_schema(
+        tags=USERS_TAG,
+        summary="Riwayat aktivitas saya",
+        parameters=[
+            q_int("limit", "Jumlah item (default 20, max 100)", 20),
+            q_int("offset", "Skip N item", 0),
+        ],
+        responses=R200,
+    ),
 )
 class ActivityHistoryView(APIView):
     permission_classes = [IsAuthenticated]

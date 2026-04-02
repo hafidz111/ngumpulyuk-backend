@@ -16,12 +16,13 @@ class User(AbstractBaseUser, PermissionsMixin):
     username = models.CharField(max_length=50, unique=True)
     full_name = models.CharField(max_length=100, verbose_name=_("Full Name"))
     phone = models.CharField(max_length=20, blank=True, null=True)
-    date_of_birth = models.DateField(blank=True, null=True)
+    date_of_birth = models.DateField(blank=True, default=None, null=True)
     gender = models.CharField(
         max_length=20,
         blank=True,
-        null=True,
         choices=[("male", "male"), ("female", "female"), ("other", "other")],
+        default=None,
+        null=True,
     )
     bio = models.TextField(blank=True, null=True)
     profile_picture = models.CharField(max_length=255, blank=True, null=True)
@@ -42,6 +43,11 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+
+    def save(self, *args, **kwargs):
+        if self.gender == "":
+            self.gender = None
+        super().save(*args, **kwargs)
 
     @property
     def get_full_name(self):

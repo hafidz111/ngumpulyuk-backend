@@ -35,6 +35,7 @@ def login_social_user(email, password):
     return {
         "email": user.email,
         "full_name": user.get_full_name,
+        "onboarding_completed": user.onboarding_completed,
         "access_token": str(user_tokens.get("access")),
         "refresh_token": str(user_tokens.get("refresh")),
     }

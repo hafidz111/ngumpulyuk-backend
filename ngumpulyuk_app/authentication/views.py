@@ -1,11 +1,15 @@
 from django.utils.encoding import DjangoUnicodeDecodeError, smart_str
 from django.utils.http import urlsafe_base64_decode
 from drf_spectacular.utils import extend_schema, extend_schema_view
-from rest_framework import status
+from ngumpulyuk_app.common.openapi_params import path_str
+from ngumpulyuk_app.common.openapi_responses import R200, R201, R204
+from rest_framework import serializers, status
 from rest_framework.generics import GenericAPIView
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
+
+from ngumpulyuk_app.common.api_response import err, ok
 
 from .models import OneTimePassword, User
 from .serializers import (
@@ -14,6 +18,7 @@ from .serializers import (
     PasswordResetRequestSerializer,
     SetNewPasswordSerializer,
     UserRegisterSerializer,
+    ResendVerificationSerializer,
     VerifyEmailSerializer,
 )
 from .utils import send_code_to_user
@@ -21,8 +26,17 @@ from .utils import send_code_to_user
 AUTH_TAG = ["Authentication"]
 
 
+class EmptySerializer(serializers.Serializer):
+    """Placeholder untuk GenericAPIView yang tidak memakai body (Swagger)."""
+
+
 @extend_schema_view(
-    post=extend_schema(tags=AUTH_TAG, summary="Registrasi akun"),
+    post=extend_schema(
+        tags=AUTH_TAG,
+        summary="Registrasi akun",
+        request=UserRegisterSerializer,
+        responses=R201,
+    ),
 )
 class RegisterUserView(GenericAPIView):
     serializer_class = UserRegisterSerializer
@@ -45,7 +59,12 @@ class RegisterUserView(GenericAPIView):
 
 
 @extend_schema_view(
-    post=extend_schema(tags=AUTH_TAG, summary="Verifikasi email (OTP)"),
+    post=extend_schema(
+        tags=AUTH_TAG,
+        summary="Verifikasi email (OTP)",
+        request=VerifyEmailSerializer,
+        responses=R200,
+    ),
 )
 class VerifyUserEmail(GenericAPIView):
     serializer_class = VerifyEmailSerializer
@@ -75,7 +94,42 @@ class VerifyUserEmail(GenericAPIView):
 
 
 @extend_schema_view(
-    post=extend_schema(tags=AUTH_TAG, summary="Login"),
+    post=extend_schema(
+        tags=AUTH_TAG,
+        summary="Kirim ulang kode verifikasi email",
+        request=ResendVerificationSerializer,
+        responses=R200,
+    ),
+)
+class ResendVerificationView(GenericAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = ResendVerificationSerializer
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"]
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return err("NOT_FOUND", "User not found", status.HTTP_404_NOT_FOUND)
+        if user.is_verified:
+            return err(
+                "BAD_REQUEST",
+                "Email already verified",
+                status.HTTP_400_BAD_REQUEST,
+            )
+        send_code_to_user(email)
+        return ok(message="Verification code sent")
+
+
+@extend_schema_view(
+    post=extend_schema(
+        tags=AUTH_TAG,
+        summary="Login",
+        request=LoginSerializer,
+        responses=R200,
+    ),
 )
 class LoginUserView(GenericAPIView):
     serializer_class = LoginSerializer
@@ -87,9 +141,10 @@ class LoginUserView(GenericAPIView):
 
 
 @extend_schema_view(
-    get=extend_schema(tags=AUTH_TAG, summary="Cek token (profil auth)"),
+    get=extend_schema(tags=AUTH_TAG, summary="Cek token (profil auth)", responses=R200),
 )
 class TestAuthenticationView(GenericAPIView):
+    serializer_class = EmptySerializer
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -98,7 +153,12 @@ class TestAuthenticationView(GenericAPIView):
 
 
 @extend_schema_view(
-    post=extend_schema(tags=AUTH_TAG, summary="Permintaan reset password"),
+    post=extend_schema(
+        tags=AUTH_TAG,
+        summary="Permintaan reset password",
+        request=PasswordResetRequestSerializer,
+        responses=R200,
+    ),
 )
 class PasswordResetRequestView(GenericAPIView):
     serializer_class = PasswordResetRequestSerializer
@@ -110,9 +170,19 @@ class PasswordResetRequestView(GenericAPIView):
 
 
 @extend_schema_view(
-    get=extend_schema(tags=AUTH_TAG, summary="Validasi token reset password (link email)"),
+    get=extend_schema(
+        tags=AUTH_TAG,
+        summary="Validasi token reset password (link email)",
+        parameters=[
+            path_str("uidb64", "User id (base64) dari link email"),
+            path_str("token", "Token dari link email"),
+        ],
+        responses=R200,
+    ),
 )
 class PasswordResetConfirm(GenericAPIView):
+    serializer_class = EmptySerializer
+
     def get(self, request, uidb64, token):
         try:
             user_id = smart_str(urlsafe_base64_decode(uidb64))
@@ -140,7 +210,12 @@ class PasswordResetConfirm(GenericAPIView):
 
 
 @extend_schema_view(
-    patch=extend_schema(tags=AUTH_TAG, summary="Set password baru (setelah token valid)"),
+    patch=extend_schema(
+        tags=AUTH_TAG,
+        summary="Set password baru (setelah token valid)",
+        request=SetNewPasswordSerializer,
+        responses=R200,
+    ),
 )
 class SetNewPassword(GenericAPIView):
     serializer_class = SetNewPasswordSerializer
@@ -155,7 +230,12 @@ class SetNewPassword(GenericAPIView):
 
 
 @extend_schema_view(
-    post=extend_schema(tags=AUTH_TAG, summary="Logout (blacklist refresh token)"),
+    post=extend_schema(
+        tags=AUTH_TAG,
+        summary="Logout (blacklist refresh token)",
+        request=LogoutUserSerializer,
+        responses=R204,
+    ),
 )
 class LogoutUserView(GenericAPIView):
     serializer_class = LogoutUserSerializer

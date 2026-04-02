@@ -321,7 +321,6 @@ Get list of events
 
 - `category` (optional): Filter by category
 - `location` (optional): Filter by location area
-- `is_free` (optional): true/false
 - `status` (optional): upcoming/ongoing/completed
 - `search` (optional): Search query
 - `date_from` (optional): YYYY-MM-DD
@@ -349,8 +348,6 @@ Get list of events
         "location_address": "Gelora Bung Karno",
         "max_participants": 50,
         "current_participants": 23,
-        "is_free": true,
-        "price": null,
         "status": "upcoming",
         "creator": {
           "id": "uuid",
@@ -394,8 +391,6 @@ Get event details
     "longitude": 106.8019,
     "max_participants": 50,
     "current_participants": 23,
-    "is_free": true,
-    "price": null,
     "is_competition": false,
     "difficulty_level": "beginner",
     "status": "upcoming",
@@ -445,8 +440,6 @@ Create new event
   "latitude": -6.2182,
   "longitude": 106.8019,
   "max_participants": 50,
-  "is_free": true,
-  "price": null,
   "is_competition": false,
   "difficulty_level": "beginner",
   "tags": ["morning", "fitness", "beginner-friendly"]

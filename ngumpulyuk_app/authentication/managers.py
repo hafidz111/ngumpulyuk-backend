@@ -31,6 +31,8 @@ class UserManager(BaseUserManager):
                     break
                 username = f"{base[:18]}_{get_random_string(8)}"
             extra_fields["username"] = username
+        extra_fields.setdefault("gender", None)
+        extra_fields.setdefault("date_of_birth", None)
         user = self.model(email=email, full_name=full_name, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)

@@ -3,6 +3,9 @@ from decimal import Decimal
 
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
+
+from ngumpulyuk_app.common.openapi_params import q_int
+from ngumpulyuk_app.common.openapi_responses import R200
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
@@ -63,7 +66,12 @@ def build_recommendations(user, limit=10):
 
 
 @extend_schema_view(
-    get=extend_schema(tags=RECOMMENDATIONS_TAG, summary="Rekomendasi event"),
+    get=extend_schema(
+        tags=RECOMMENDATIONS_TAG,
+        summary="Rekomendasi event",
+        parameters=[q_int("limit", "Jumlah rekomendasi (default 10, max 100)", 10)],
+        responses=R200,
+    ),
 )
 class RecommendationsEventsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -84,7 +92,12 @@ class RecommendationsEventsView(APIView):
 
 
 @extend_schema_view(
-    post=extend_schema(tags=RECOMMENDATIONS_TAG, summary="Segarkan rekomendasi"),
+    post=extend_schema(
+        tags=RECOMMENDATIONS_TAG,
+        summary="Segarkan rekomendasi",
+        request=None,
+        responses=R200,
+    ),
 )
 class RecommendationsRefreshView(APIView):
     permission_classes = [IsAuthenticated]

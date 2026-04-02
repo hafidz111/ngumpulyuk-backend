@@ -15,19 +15,27 @@ def user_stats(user):
     }
 
 
-class OnboardingSerializer(serializers.Serializer):
-    personal_data = serializers.DictField()
-    interests = serializers.ListField(child=serializers.CharField(max_length=50))
-    preferences = serializers.DictField()
+class OnboardingPersonalSerializer(serializers.Serializer):
+    date_of_birth = serializers.DateField()
+    gender = serializers.ChoiceField(choices=["male", "female", "other"])
 
-    def validate_personal_data(self, v):
-        dob = v.get("date_of_birth")
-        gender = v.get("gender")
-        if not dob or not gender:
-            raise serializers.ValidationError("date_of_birth and gender are required")
-        if gender not in ("male", "female", "other"):
-            raise serializers.ValidationError("Invalid gender")
-        return v
+
+class OnboardingPreferencesSerializer(serializers.Serializer):
+    preferred_days = serializers.ListField(child=serializers.CharField(), required=False)
+    preferred_time = serializers.ChoiceField(
+        choices=["morning", "afternoon", "evening", "night"],
+        required=False,
+        allow_null=True,
+    )
+    preferred_location = serializers.CharField(
+        max_length=100, required=False, allow_blank=True, allow_null=True
+    )
+
+
+class OnboardingSerializer(serializers.Serializer):
+    personal_data = OnboardingPersonalSerializer()
+    interests = serializers.ListField(child=serializers.CharField(max_length=50))
+    preferences = OnboardingPreferencesSerializer(required=False)
 
 
 class UserProfileUpdateSerializer(serializers.Serializer):

@@ -50,3 +50,6 @@ build/
 # Temporary files
 *.swp
 *.swo
+API-documentation.md
+ERD-ngumpulyuk.md
+ERD-visual-ngumpulyuk.md

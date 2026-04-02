@@ -6,6 +6,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 
 from ngumpulyuk_app.common.api_response import err, ok
+from ngumpulyuk_app.common.openapi_params import path_uuid, q_int, q_str
+from ngumpulyuk_app.common.openapi_responses import R200, R201
 from ngumpulyuk_app.common.presenters import clamp_limit, clamp_offset, pagination_meta
 from ngumpulyuk_app.events.models import Event, EventParticipant, EventTag
 from ngumpulyuk_app.events.serializers import EventWriteSerializer, event_detail, event_list_item
@@ -13,10 +15,32 @@ from ngumpulyuk_app.users.models import ActivityHistory
 
 EVENTS_TAG = ["Events"]
 
+_EVENT_LIST_PARAMS = [
+    q_str("category", "Filter kategori"),
+    q_str("location", "Filter area lokasi (mencocokkan location_area)"),
+    q_str("status", "upcoming | ongoing | completed | cancelled"),
+    q_str("search", "Cari di judul / deskripsi"),
+    q_str("date_from", "Tanggal mulai filter (YYYY-MM-DD)"),
+    q_str("date_to", "Tanggal akhir filter (YYYY-MM-DD)"),
+    q_str("sort", "date_asc | date_desc | popular | newest (default: date_asc)"),
+    q_int("limit", "Jumlah item (default 20, max 100)", 20),
+    q_int("offset", "Skip N item", 0),
+]
+
 
 @extend_schema_view(
-    get=extend_schema(tags=EVENTS_TAG, summary="Daftar event"),
-    post=extend_schema(tags=EVENTS_TAG, summary="Buat event"),
+    get=extend_schema(
+        tags=EVENTS_TAG,
+        summary="Daftar event",
+        parameters=_EVENT_LIST_PARAMS,
+        responses=R200,
+    ),
+    post=extend_schema(
+        tags=EVENTS_TAG,
+        summary="Buat event",
+        request=EventWriteSerializer,
+        responses=R201,
+    ),
 )
 class EventListCreateView(APIView):
     def get_permissions(self):
@@ -95,9 +119,25 @@ class EventListCreateView(APIView):
 
 
 @extend_schema_view(
-    get=extend_schema(tags=EVENTS_TAG, summary="Detail event"),
-    put=extend_schema(tags=EVENTS_TAG, summary="Update event (pemilik)"),
-    delete=extend_schema(tags=EVENTS_TAG, summary="Hapus event (pemilik)"),
+    get=extend_schema(
+        tags=EVENTS_TAG,
+        summary="Detail event",
+        parameters=[path_uuid("id", "ID event")],
+        responses=R200,
+    ),
+    put=extend_schema(
+        tags=EVENTS_TAG,
+        summary="Update event (pemilik)",
+        parameters=[path_uuid("id", "ID event")],
+        request=EventWriteSerializer,
+        responses=R200,
+    ),
+    delete=extend_schema(
+        tags=EVENTS_TAG,
+        summary="Hapus event (pemilik)",
+        parameters=[path_uuid("id", "ID event")],
+        responses=R200,
+    ),
 )
 class EventDetailView(APIView):
     def get_permissions(self):
@@ -159,7 +199,13 @@ class EventDetailView(APIView):
 
 
 @extend_schema_view(
-    post=extend_schema(tags=EVENTS_TAG, summary="Gabung event"),
+    post=extend_schema(
+        tags=EVENTS_TAG,
+        summary="Gabung event",
+        parameters=[path_uuid("id", "ID event")],
+        request=None,
+        responses=R200,
+    ),
 )
 class EventJoinView(APIView):
     permission_classes = [IsAuthenticated]
@@ -192,7 +238,12 @@ class EventJoinView(APIView):
 
 
 @extend_schema_view(
-    delete=extend_schema(tags=EVENTS_TAG, summary="Tinggalkan event"),
+    delete=extend_schema(
+        tags=EVENTS_TAG,
+        summary="Tinggalkan event",
+        parameters=[path_uuid("id", "ID event")],
+        responses=R200,
+    ),
 )
 class EventLeaveView(APIView):
     permission_classes = [IsAuthenticated]
@@ -211,7 +262,16 @@ class EventLeaveView(APIView):
 
 
 @extend_schema_view(
-    get=extend_schema(tags=EVENTS_TAG, summary="Daftar peserta event"),
+    get=extend_schema(
+        tags=EVENTS_TAG,
+        summary="Daftar peserta event",
+        parameters=[
+            path_uuid("id", "ID event"),
+            q_int("limit", "Jumlah item (default 50, max 100)", 50),
+            q_int("offset", "Skip N item", 0),
+        ],
+        responses=R200,
+    ),
 )
 class EventParticipantsView(APIView):
     permission_classes = [AllowAny]
