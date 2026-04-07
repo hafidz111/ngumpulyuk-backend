@@ -156,3 +156,57 @@ class CommentLikeView(APIView):
             user=request.user, likeable_type="comment", likeable_id=c.id
         )
         return ok(message="Comment liked")
+
+@extend_schema_view(
+    get=extend_schema(
+        tags=DISCUSSIONS_TAG,
+        summary="Global Thread Feed",
+        parameters=[
+            q_int("limit", "Jumlah item (default 20, max 100)", 20),
+            q_int("offset", "Skip N item", 0),
+        ],
+        responses=R200,
+    ),
+)
+class ThreadFeedView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from ngumpulyuk_app.communities.models import CommunityMember
+        from ngumpulyuk_app.communities.views import thread_dict
+
+        limit = clamp_limit(request.query_params.get("limit"), 20)
+        offset = clamp_offset(request.query_params.get("offset"))
+
+        user_communities = CommunityMember.objects.filter(user=request.user).values_list("community_id", flat=True)
+        qs = Thread.objects.filter(community_id__in=user_communities).select_related("author").order_by("-created_at")
+
+        total = qs.count()
+        rows = qs[offset : offset + limit]
+
+        threads = [thread_dict(t, request.user) for t in rows]
+        return ok({"threads": threads, **pagination_meta(total, limit, offset)})
+
+
+@extend_schema_view(
+    delete=extend_schema(
+        tags=DISCUSSIONS_TAG,
+        summary="Hapus Thread",
+        parameters=[path_uuid("id", "ID thread")],
+        responses=R200,
+    ),
+)
+class ThreadDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, id):
+        try:
+            t = Thread.objects.get(pk=id)
+        except Thread.DoesNotExist:
+            return err("NOT_FOUND", "Thread not found", status.HTTP_404_NOT_FOUND)
+        
+        if request.user != t.author:
+            return err("FORBIDDEN", "You can only delete your own thread", status.HTTP_403_FORBIDDEN)
+            
+        t.delete()
+        return ok(message="Thread deleted successfully")

@@ -17,6 +17,8 @@ def event_list_item(ev):
         "cover_image": ev.cover_image,
         "event_date": ev.event_date.isoformat(),
         "event_time": ev.event_time.strftime("%H:%M:%S") if ev.event_time else None,
+        "end_date": ev.end_date.isoformat() if ev.end_date else None,
+        "end_time": ev.end_time.strftime("%H:%M:%S") if ev.end_time else None,
         "location_area": ev.location_area,
         "location_address": ev.location_address,
         "max_participants": ev.max_participants,
@@ -50,6 +52,8 @@ def event_detail(ev, request_user=None):
         "cover_image": ev.cover_image,
         "event_date": ev.event_date.isoformat(),
         "event_time": ev.event_time.strftime("%H:%M:%S") if ev.event_time else None,
+        "end_date": ev.end_date.isoformat() if ev.end_date else None,
+        "end_time": ev.end_time.strftime("%H:%M:%S") if ev.end_time else None,
         "location_area": ev.location_area,
         "location_address": ev.location_address,
         "latitude": float(ev.latitude) if ev.latitude is not None else None,
@@ -81,6 +85,8 @@ class EventWriteSerializer(serializers.Serializer):
     cover_image = serializers.CharField(max_length=255, required=False, allow_blank=True, allow_null=True)
     event_date = serializers.DateField()
     event_time = serializers.CharField()
+    end_date = serializers.DateField(required=False, allow_null=True)
+    end_time = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     location_area = serializers.CharField(max_length=100)
     location_address = serializers.CharField()
     latitude = serializers.DecimalField(max_digits=10, decimal_places=8, required=False, allow_null=True)

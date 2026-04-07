@@ -89,6 +89,7 @@ class EventListCreateView(APIView):
         ser.is_valid(raise_exception=True)
         v = ser.validated_data
         t = ser.parse_time(v["event_time"])
+        end_t = ser.parse_time(v["end_time"]) if v.get("end_time") else None
         with transaction.atomic():
             ev = Event.objects.create(
                 creator=request.user,
@@ -98,6 +99,8 @@ class EventListCreateView(APIView):
                 cover_image=v.get("cover_image") or None,
                 event_date=v["event_date"],
                 event_time=t,
+                end_date=v.get("end_date"),
+                end_time=end_t,
                 location_area=v["location_area"],
                 location_address=v["location_address"],
                 latitude=v.get("latitude"),
@@ -168,6 +171,7 @@ class EventDetailView(APIView):
         ser.is_valid(raise_exception=True)
         v = ser.validated_data
         t = ser.parse_time(v["event_time"])
+        end_t = ser.parse_time(v["end_time"]) if v.get("end_time") else None
         with transaction.atomic():
             ev.title = v["title"]
             ev.description = v["description"]
@@ -175,6 +179,8 @@ class EventDetailView(APIView):
             ev.cover_image = v.get("cover_image") or None
             ev.event_date = v["event_date"]
             ev.event_time = t
+            ev.end_date = v.get("end_date")
+            ev.end_time = end_t
             ev.location_area = v["location_area"]
             ev.location_address = v["location_address"]
             ev.latitude = v.get("latitude")
@@ -302,3 +308,54 @@ class EventParticipantsView(APIView):
             for p in rows
         ]
         return ok({"participants": participants, **pagination_meta(total, limit, offset)})
+
+
+@extend_schema_view(
+    get=extend_schema(
+        tags=EVENTS_TAG,
+        summary="Daftar saran kategori event",
+        parameters=[
+            q_str("search", "Pencarian nama kategori"),
+        ],
+        responses=R200,
+    ),
+)
+class EventCategoryListView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        search = request.query_params.get("search", "").strip().lower()
+
+        default_categories = [
+            "Olahraga",
+            "Seni & Budaya",
+            "Teknologi",
+            "Pendidikan",
+            "Musik",
+            "Kuliner",
+            "Bisnis",
+            "Kesehatan",
+            "Sosial",
+            "Hiburan",
+            "Lainnya"
+        ]
+
+        db_categories = list(Event.objects.exclude(category="").values_list("category", flat=True).distinct())
+
+        raw_categories = [c for c in (default_categories + db_categories) if c]
+
+        category_dict = {}
+        for c in raw_categories:
+            lower_c = c.lower()
+            if lower_c not in category_dict:
+                category_dict[lower_c] = c
+
+        all_categories = list(category_dict.values())
+
+        if search:
+            filtered_categories = [c for c in all_categories if search in c.lower()]
+        else:
+            filtered_categories = all_categories
+
+        return ok({"categories": filtered_categories})
+

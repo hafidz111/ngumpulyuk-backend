@@ -244,11 +244,14 @@ class CommunityMembersView(APIView):
         except Community.DoesNotExist:
             return err("NOT_FOUND", "Community not found", status.HTTP_404_NOT_FOUND)
         role = request.query_params.get("role")
+        search = request.query_params.get("search")
         limit = clamp_limit(request.query_params.get("limit"), 50)
         offset = clamp_offset(request.query_params.get("offset"))
         qs = CommunityMember.objects.filter(community=c).select_related("user")
         if role:
             qs = qs.filter(role=role)
+        if search:
+            qs = qs.filter(Q(user__username__icontains=search) | Q(user__full_name__icontains=search))
         qs = qs.order_by("joined_at")
         total = qs.count()
         rows = qs[offset : offset + limit]
@@ -336,3 +339,46 @@ class CommunityThreadsView(APIView):
             related_id=t.id,
         )
         return ok(thread_dict(t, request.user), message="Thread created successfully", status_code=status.HTTP_201_CREATED)
+
+@extend_schema_view(
+    patch=extend_schema(
+        tags=COMMUNITIES_TAG,
+        summary="Ubah Role Anggota",
+        parameters=[
+            path_uuid("id", "ID komunitas"),
+            path_uuid("user_id", "ID User"),
+        ],
+        responses=R200,
+    ),
+)
+class CommunityMemberRoleView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, id, user_id):
+        try:
+            c = Community.objects.get(pk=id)
+        except Community.DoesNotExist:
+            return err("NOT_FOUND", "Community not found", status.HTTP_404_NOT_FOUND)
+
+        is_creator = (c.creator == request.user)
+        is_admin = CommunityMember.objects.filter(community=c, user=request.user, role="admin").exists()
+
+        if not (is_creator or is_admin):
+            return err("FORBIDDEN", "Only admin or creator can change member roles", status.HTTP_403_FORBIDDEN)
+            
+        if str(c.creator.id) == str(user_id):
+            return err("FORBIDDEN", "Cannot modify the role of the community creator", status.HTTP_403_FORBIDDEN)
+
+        try:
+            member = CommunityMember.objects.get(community=c, user_id=user_id)
+        except CommunityMember.DoesNotExist:
+            return err("NOT_FOUND", "User is not a member of this community", status.HTTP_404_NOT_FOUND)
+
+        new_role = request.data.get("role")
+        if new_role not in ["admin", "moderator", "member"]:
+            return err("INVALID_DATA", "Role must be admin, moderator, or member", status.HTTP_400_BAD_REQUEST)
+
+        member.role = new_role
+        member.save()
+
+        return ok(message=f"Success updated role to {new_role}")

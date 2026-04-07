@@ -8,4 +8,5 @@ urlpatterns = [
     path("events/<uuid:id>/join/", views.EventJoinView.as_view(), name="events-join"),
     path("events/<uuid:id>/leave/", views.EventLeaveView.as_view(), name="events-leave"),
     path("events/<uuid:id>/participants/", views.EventParticipantsView.as_view(), name="events-participants"),
+    path("categories/", views.EventCategoryListView.as_view(), name="events-categories"),
 ]

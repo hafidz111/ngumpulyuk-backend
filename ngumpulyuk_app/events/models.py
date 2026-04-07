@@ -18,6 +18,8 @@ class Event(models.Model):
     cover_image = models.CharField(max_length=255, blank=True, null=True)
     event_date = models.DateField()
     event_time = models.TimeField()
+    end_date = models.DateField(blank=True, null=True)
+    end_time = models.TimeField(blank=True, null=True)
     location_area = models.CharField(max_length=100)
     location_address = models.TextField()
     latitude = models.DecimalField(max_digits=10, decimal_places=8, blank=True, null=True)
