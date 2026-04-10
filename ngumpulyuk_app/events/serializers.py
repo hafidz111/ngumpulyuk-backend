@@ -21,6 +21,8 @@ def event_list_item(ev):
         "end_time": ev.end_time.strftime("%H:%M:%S") if ev.end_time else None,
         "location_area": ev.location_area,
         "location_address": ev.location_address,
+        "latitude": float(ev.latitude) if ev.latitude is not None else None,
+        "longitude": float(ev.longitude) if ev.longitude is not None else None,
         "max_participants": ev.max_participants,
         "current_participants": ev.current_participants,
         "status": ev.status,
