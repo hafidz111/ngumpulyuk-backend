@@ -11,3 +11,8 @@ sqlparse
 tzdata
 google-auth
 requests
+
+# Production
+gunicorn
+psycopg2-binary
+whitenoise

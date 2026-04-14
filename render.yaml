@@ -1,0 +1,53 @@
+services:
+  - type: web
+    name: ngumpulyuk-backend
+    runtime: python
+    region: singapore          # Pilih region terdekat
+    plan: free                 # Ganti ke 'starter' atau 'standard' untuk production
+
+    buildCommand: >
+      pip install -r requirements.txt &&
+      python manage.py migrate &&
+      python manage.py collectstatic --noinput
+
+    startCommand: gunicorn ngumpulyuk_project.wsgi:application --workers 2 --timeout 60
+
+    envVars:
+      # ─── Wajib diisi manual di Render Dashboard ──────────────────
+      # Jangan tulis nilai rahasia di sini! Set via Render → Environment
+      - key: SECRET_KEY
+        generateValue: true      # Render akan generate otomatis
+
+      - key: DATABASE_URL
+        sync: false              # Diisi manual dari Supabase di Render dashboard
+
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+
+      - key: SOCIAL_AUTH_PASSWORD
+        sync: false
+
+      - key: EMAIL_HOST_USER
+        sync: false
+
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+
+      - key: FRONTEND_URL
+        sync: false
+
+      # ─── Nilai tetap untuk production ────────────────────────────
+      - key: DJANGO_ENV
+        value: production
+
+      - key: DEBUG
+        value: "False"
+
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com"   # Ganti dengan domain kustom jika ada
+
+      - key: PYTHON_VERSION
+        value: "3.11.0"

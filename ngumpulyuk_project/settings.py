@@ -12,8 +12,10 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 import environ
 from pathlib import Path
 from datetime import timedelta
+
 env = environ.Env(
-    DEBUG=(bool, False)
+    DEBUG=(bool, False),
+    DJANGO_ENV=(str, 'development'),
 )
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -26,6 +28,8 @@ environ.Env.read_env(BASE_DIR / '.env')
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = env('SECRET_KEY')
+
+DJANGO_ENV = env('DJANGO_ENV')  # 'development' atau 'production'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env('DEBUG')
@@ -73,6 +77,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Harus setelah SecurityMiddleware
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -105,13 +110,20 @@ WSGI_APPLICATION = 'ngumpulyuk_project.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
+# Development  → SQLite (lokal, tanpa konfigurasi tambahan)
+# Production   → Supabase PostgreSQL (DATABASE_URL di-set di Render dashboard)
 
-DATABASES = {
-    'default': env.db(
-        'DATABASE_URL',
-        default='sqlite:///' + str(BASE_DIR / 'db.sqlite3'),
-    )
-}
+if DJANGO_ENV == 'production':
+    DATABASES = {
+        'default': env.db('DATABASE_URL')
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 AUTH_USER_MODEL="authentication.User"
 
@@ -210,6 +222,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
