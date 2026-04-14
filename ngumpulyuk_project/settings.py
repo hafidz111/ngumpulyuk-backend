@@ -110,19 +110,16 @@ WSGI_APPLICATION = 'ngumpulyuk_project.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
-# Development  → SQLite (lokal, tanpa konfigurasi tambahan)
-# Production   → Supabase PostgreSQL (DATABASE_URL di-set di Render dashboard)
+# Jika ada DATABASE_URL di .env, gunakan itu (PostgreSQL/Supabase).
+# Jika tidak ada dan di mode development, gunakan SQLite sebagai fallback.
 
-if DJANGO_ENV == 'production':
-    DATABASES = {
-        'default': env.db('DATABASE_URL')
-    }
+DATABASES = {}
+if DJANGO_ENV == 'production' or env('DATABASE_URL', default=None):
+    DATABASES['default'] = env.db('DATABASE_URL')
 else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
+    DATABASES['default'] = {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 
 AUTH_USER_MODEL="authentication.User"
