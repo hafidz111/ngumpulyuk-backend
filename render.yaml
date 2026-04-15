@@ -31,10 +31,13 @@ services:
         sync: false
 
       - key: EMAIL_HOST_USER
-        sync: false
+        sync: false              # Gmail address untuk production
 
       - key: EMAIL_HOST_PASSWORD
-        sync: false
+        sync: false              # Gmail App Password (16 karakter)
+
+      - key: DEFAULT_FROM_EMAIL
+        sync: false              # Contoh: info@ngumpulyuk.id
 
       - key: FRONTEND_URL
         sync: false
