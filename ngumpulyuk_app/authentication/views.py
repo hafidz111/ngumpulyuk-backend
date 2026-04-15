@@ -48,14 +48,12 @@ class RegisterUserView(GenericAPIView):
             serializer.save()
             user = serializer.data
             send_code_to_user(user["email"])
-            return Response(
-                {
-                    "data": user,
-                    "message": "Daftar berhasil, silahkan login dengan email yang telah didaftarkan",
-                },
-                status=status.HTTP_201_CREATED,
+            return ok(
+                user,
+                message="Daftar berhasil, silahkan login dengan email yang telah didaftarkan",
+                status_code=status.HTTP_201_CREATED,
             )
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return err("VALIDATION_ERROR", "Validation error", status.HTTP_422_UNPROCESSABLE_ENTITY)
 
 
 @extend_schema_view(
@@ -76,7 +74,7 @@ class VerifyUserEmail(GenericAPIView):
         otpcode = serializer.validated_data["otp"]
 
         if not otpcode:
-            return Response({"message": "OTP wajib diisi"}, status=status.HTTP_400_BAD_REQUEST)
+            return err("VALIDATION_ERROR", "OTP wajib diisi", status.HTTP_422_UNPROCESSABLE_ENTITY)
 
         try:
             user_code_obj = OneTimePassword.objects.get(code=otpcode)
@@ -84,13 +82,10 @@ class VerifyUserEmail(GenericAPIView):
             if not user.is_verified:
                 user.is_verified = True
                 user.save()
-                return Response({"message": "Account email verified successfully"}, status=status.HTTP_200_OK)
-            return Response(
-                {"message": "Code is invalid user already verified"},
-                status=status.HTTP_204_NO_CONTENT,
-            )
+                return ok(message="Account email verified successfully")
+            return err("CONFLICT", "Email already verified", status.HTTP_409_CONFLICT)
         except OneTimePassword.DoesNotExist:
-            return Response({"message": "passcode not provided"}, status=status.HTTP_404_NOT_FOUND)
+            return err("NOT_FOUND", "Passcode not provided", status.HTTP_404_NOT_FOUND)
 
 
 @extend_schema_view(
@@ -115,9 +110,9 @@ class ResendVerificationView(GenericAPIView):
             return err("NOT_FOUND", "User not found", status.HTTP_404_NOT_FOUND)
         if user.is_verified:
             return err(
-                "BAD_REQUEST",
+                "CONFLICT",
                 "Email already verified",
-                status.HTTP_400_BAD_REQUEST,
+                status.HTTP_409_CONFLICT,
             )
         send_code_to_user(email)
         return ok(message="Verification code sent")
@@ -137,7 +132,7 @@ class LoginUserView(GenericAPIView):
     def post(self, request):
         serializer = self.serializer_class(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return ok(serializer.data)
 
 
 @extend_schema_view(
@@ -149,7 +144,7 @@ class TestAuthenticationView(GenericAPIView):
 
     def get(self, request):
         data = {"msg": "its works"}
-        return Response(data, status=status.HTTP_200_OK)
+        return ok(data)
 
 
 @extend_schema_view(
@@ -166,7 +161,7 @@ class PasswordResetRequestView(GenericAPIView):
     def post(self, request):
         serializer = self.serializer_class(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
-        return Response({"message": "we have sent you a link to reset your password"}, status=status.HTTP_200_OK)
+        return ok(message="we have sent you a link to reset your password")
 
 
 @extend_schema_view(
@@ -188,25 +183,14 @@ class PasswordResetConfirm(GenericAPIView):
             user_id = smart_str(urlsafe_base64_decode(uidb64))
             user = User.objects.get(id=user_id)
             if not PasswordResetTokenGenerator().check_token(user, token):
-                return Response(
-                    {"message": "token is invalid or has expired"},
-                    status=status.HTTP_401_UNAUTHORIZED,
-                )
-            return Response(
-                {
-                    "success": True,
-                    "message": "credentials is valid",
-                    "uidb64": uidb64,
-                    "token": token,
-                },
-                status=status.HTTP_200_OK,
+                return err("UNAUTHORIZED", "token is invalid or has expired", status.HTTP_401_UNAUTHORIZED)
+            return ok(
+                {"uidb64": uidb64, "token": token},
+                message="credentials is valid",
             )
 
         except DjangoUnicodeDecodeError as identifier:
-            return Response(
-                {"message": "token is invalid or has expired"},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
+            return err("UNAUTHORIZED", "token is invalid or has expired", status.HTTP_401_UNAUTHORIZED)
 
 
 @extend_schema_view(
@@ -223,10 +207,7 @@ class SetNewPassword(GenericAPIView):
     def patch(self, request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
-        return Response(
-            {"success": True, "message": "password reset is succesful"},
-            status=status.HTTP_200_OK,
-        )
+        return ok(message="password reset is succesful")
 
 
 @extend_schema_view(
@@ -245,4 +226,4 @@ class LogoutUserView(GenericAPIView):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return ok(message="logout successful")

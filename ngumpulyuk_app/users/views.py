@@ -14,8 +14,9 @@ from django.utils import timezone
 from ngumpulyuk_app.authentication.serializers import user_me_dict, user_public_dict
 from ngumpulyuk_app.common.api_response import err, ok
 from ngumpulyuk_app.common.presenters import clamp_limit, clamp_offset, pagination_meta
+from ngumpulyuk_app.communities.models import CommunityMember
+from ngumpulyuk_app.events.models import Event, EventParticipant
 from ngumpulyuk_app.users.models import ActivityHistory, UserInterest, UserPreferences
-from ngumpulyuk_app.events.models import EventParticipant
 from ngumpulyuk_app.users.serializers import (
     OnboardingSerializer,
     UserProfileUpdateSerializer,
@@ -201,3 +202,76 @@ class JoinedEventIdsView(APIView):
             )
         )
         return ok({"event_ids": [str(event_id) for event_id in event_ids]})
+
+
+@extend_schema_view(
+    get=extend_schema(
+        tags=USERS_TAG,
+        summary="Ringkasan partisipasi pengguna",
+        responses=R200,
+    ),
+)
+class ParticipationSummaryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        today = timezone.localdate()
+        participant_qs = EventParticipant.objects.filter(user=request.user, status="confirmed").select_related(
+            "event"
+        )
+        active_participants = participant_qs.filter(
+            Q(event__end_date__isnull=False, event__end_date__gte=today)
+            | Q(event__end_date__isnull=True, event__event_date__gte=today)
+        ).order_by("event__event_date", "event__event_time")
+        past_participants = participant_qs.filter(
+            Q(event__end_date__isnull=False, event__end_date__lt=today)
+            | Q(event__end_date__isnull=True, event__event_date__lt=today)
+        ).order_by("-event__event_date", "-event__event_time")
+        community_qs = CommunityMember.objects.filter(user=request.user).select_related("community").order_by(
+            "-joined_at"
+        )
+        created_events_qs = Event.objects.filter(creator=request.user).order_by("-created_at")
+
+        return ok(
+            {
+                "active_events_count": active_participants.count(),
+                "past_events_count": past_participants.count(),
+                "joined_communities_count": community_qs.count(),
+                "events_created_count": created_events_qs.count(),
+                "active_events": [
+                    {
+                        "id": str(p.event_id),
+                        "title": p.event.title,
+                        "status": p.event.status,
+                        "joined_at": p.joined_at.isoformat().replace("+00:00", "Z"),
+                    }
+                    for p in active_participants
+                ],
+                "past_events": [
+                    {
+                        "id": str(p.event_id),
+                        "title": p.event.title,
+                        "status": p.event.status,
+                        "joined_at": p.joined_at.isoformat().replace("+00:00", "Z"),
+                    }
+                    for p in past_participants
+                ],
+                "joined_communities": [
+                    {
+                        "id": str(m.community_id),
+                        "title": m.community.name,
+                        "joined_at": m.joined_at.isoformat().replace("+00:00", "Z"),
+                    }
+                    for m in community_qs
+                ],
+                "events_created": [
+                    {
+                        "id": str(ev.id),
+                        "title": ev.title,
+                        "status": ev.status,
+                        "joined_at": ev.created_at.isoformat().replace("+00:00", "Z"),
+                    }
+                    for ev in created_events_qs
+                ],
+            }
+        )

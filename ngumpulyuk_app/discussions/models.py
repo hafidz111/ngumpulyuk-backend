@@ -5,11 +5,17 @@ from django.db import models
 from django.db.models import F
 
 from ngumpulyuk_app.communities.models import Community
+from ngumpulyuk_app.events.models import Event
 
 
 class Thread(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    community = models.ForeignKey(Community, on_delete=models.CASCADE, related_name="threads")
+    community = models.ForeignKey(
+        Community, on_delete=models.CASCADE, related_name="threads", blank=True, null=True
+    )
+    related_event = models.ForeignKey(
+        Event, on_delete=models.SET_NULL, related_name="threads", blank=True, null=True
+    )
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,

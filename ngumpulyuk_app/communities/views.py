@@ -17,6 +17,7 @@ from ngumpulyuk_app.common.presenters import (
     pagination_meta,
 )
 from ngumpulyuk_app.communities.models import Community, CommunityMember
+from ngumpulyuk_app.events.models import EventParticipant
 from ngumpulyuk_app.discussions.models import Thread
 from ngumpulyuk_app.users.models import ActivityHistory
 
@@ -63,6 +64,29 @@ def community_dict(c, request_user, detail=False):
     return base
 
 
+def _thread_permissions(t, request_user):
+    can_delete = False
+    can_edit = False
+    can_moderate = False
+    if request_user and request_user.is_authenticated:
+        is_author = request_user.id == t.author_id
+        is_moderator = False
+        if t.community_id:
+            is_creator = t.community.creator_id == request_user.id if getattr(t, "community", None) else False
+            is_admin_or_moderator = CommunityMember.objects.filter(
+                community_id=t.community_id, user=request_user, role__in=["admin", "moderator"]
+            ).exists()
+            is_moderator = is_creator or is_admin_or_moderator
+        can_moderate = is_moderator
+        can_delete = is_author or is_moderator
+        can_edit = is_author
+    return {
+        "can_delete": can_delete,
+        "can_edit": can_edit,
+        "can_moderate": can_moderate,
+    }
+
+
 def thread_dict(t, request_user, include_community_name=False):
     from ngumpulyuk_app.discussions.models import Like
 
@@ -71,17 +95,25 @@ def thread_dict(t, request_user, include_community_name=False):
         liked = Like.objects.filter(
             user=request_user, likeable_type="thread", likeable_id=t.id
         ).exists()
+    permissions = _thread_permissions(t, request_user)
     data = {
         "id": str(t.id),
-        "community_id": str(t.community_id),
+        "community_id": str(t.community_id) if t.community_id else None,
         "title": t.title,
         "content": t.content,
         "images": t.images or [],
         "like_count": t.like_count,
         "comment_count": t.comment_count,
         "is_pinned": t.is_pinned,
+        "related_event_id": str(t.related_event_id) if t.related_event_id else None,
+        "related_event": (
+            {"id": str(t.related_event_id), "title": t.related_event.title}
+            if getattr(t, "related_event", None)
+            else None
+        ),
         "author": mini_user(t.author),
         "is_liked": liked,
+        **permissions,
         "created_at": t.created_at.isoformat().replace("+00:00", "Z") if t.created_at else None,
     }
     if include_community_name:
@@ -317,7 +349,11 @@ class CommunityThreadsView(APIView):
         limit = clamp_limit(request.query_params.get("limit"), 20)
         offset = clamp_offset(request.query_params.get("offset"))
         sort = request.query_params.get("sort") or "latest"
-        qs = Thread.objects.filter(community=c).select_related("author").prefetch_related("author__interest_rows")
+        qs = (
+            Thread.objects.filter(community=c)
+            .select_related("author", "community", "related_event")
+            .prefetch_related("author__interest_rows")
+        )
         if sort == "popular":
             qs = qs.order_by("-like_count", "-created_at")
         else:
@@ -346,22 +382,36 @@ class CommunityThreadsView(APIView):
                     return err(
                         images_error.get("code", "VALIDATION_ERROR"),
                         images_error.get("message", "Invalid images payload"),
-                        status.HTTP_400_BAD_REQUEST,
+                        status.HTTP_422_UNPROCESSABLE_ENTITY,
                     )
                 if isinstance(images_error, list) and images_error and isinstance(images_error[0], dict):
                     return err(
                         images_error[0].get("code", "VALIDATION_ERROR"),
                         images_error[0].get("message", "Invalid images payload"),
-                        status.HTTP_400_BAD_REQUEST,
+                        status.HTTP_422_UNPROCESSABLE_ENTITY,
                     )
             raise
         v = ser.validated_data
+        related_event_id = v.get("related_event_id")
+        related_event = None
+        if related_event_id:
+            from ngumpulyuk_app.events.models import Event
+
+            related_event = Event.objects.filter(id=related_event_id).first()
+            if not related_event:
+                return err("NOT_FOUND", "Related event not found", status.HTTP_404_NOT_FOUND)
+            is_participant = EventParticipant.objects.filter(
+                event=related_event, user=request.user, status="confirmed"
+            ).exists()
+            if not is_participant:
+                return err("FORBIDDEN", "You must join the related event", status.HTTP_403_FORBIDDEN)
         t = Thread.objects.create(
             community=c,
             author=request.user,
             title=(v.get("title") or "").strip() or "",
             content=v["content"],
             images=v.get("images") or [],
+            related_event=related_event,
         )
         ActivityHistory.objects.create(
             user=request.user,

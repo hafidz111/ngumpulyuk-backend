@@ -249,7 +249,7 @@ class EventJoinView(APIView):
             return err("NOT_FOUND", "Event not found", status.HTTP_404_NOT_FOUND)
         ep = EventParticipant.objects.filter(event=ev, user=request.user).first()
         if ep and ep.status == "confirmed":
-            return err("ALREADY_JOINED", "Already joined", status.HTTP_400_BAD_REQUEST)
+            return err("ALREADY_JOINED", "Already joined", status.HTTP_409_CONFLICT)
         registration_deadline_date = ev.registration_deadline or ev.event_date
         registration_deadline_time = ev.registration_deadline_time
         if registration_deadline_time is None:
@@ -258,9 +258,9 @@ class EventJoinView(APIView):
         if timezone.is_naive(deadline_dt):
             deadline_dt = timezone.make_aware(deadline_dt, timezone.get_current_timezone())
         if timezone.now() > deadline_dt:
-            return err("REGISTRATION_CLOSED", "Event registration is closed", status.HTTP_400_BAD_REQUEST)
+            return err("REGISTRATION_CLOSED", "Event registration is closed", status.HTTP_409_CONFLICT)
         if ev.current_participants >= ev.max_participants:
-            return err("EVENT_FULL", "Event has reached maximum participants", status.HTTP_400_BAD_REQUEST)
+            return err("EVENT_FULL", "Event has reached maximum participants", status.HTTP_409_CONFLICT)
         if ep:
             ep.status = "confirmed"
             ep.save()
@@ -296,7 +296,7 @@ class EventLeaveView(APIView):
             return err("NOT_FOUND", "Event not found", status.HTTP_404_NOT_FOUND)
         qs = EventParticipant.objects.filter(event=ev, user=request.user)
         if not qs.exists():
-            return err("VALIDATION_ERROR", "Not a participant", status.HTTP_400_BAD_REQUEST)
+            return err("CONFLICT", "Not a participant", status.HTTP_409_CONFLICT)
         for ep in qs:
             ep.delete()
         return ok(message="Successfully left event")

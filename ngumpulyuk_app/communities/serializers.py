@@ -15,6 +15,7 @@ class ThreadWriteSerializer(serializers.Serializer):
     title = serializers.CharField(max_length=200, required=False, allow_blank=True)
     content = serializers.CharField()
     images = serializers.ListField(child=serializers.CharField(), required=False)
+    related_event_id = serializers.UUIDField(required=False, allow_null=True)
 
     def validate_images(self, value):
         if value is None:
