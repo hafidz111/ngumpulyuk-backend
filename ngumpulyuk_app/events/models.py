@@ -20,6 +20,9 @@ class Event(models.Model):
     event_time = models.TimeField()
     end_date = models.DateField(blank=True, null=True)
     end_time = models.TimeField(blank=True, null=True)
+    has_registration_deadline = models.BooleanField(default=False)
+    registration_deadline = models.DateField(blank=True, null=True)
+    registration_deadline_time = models.TimeField(blank=True, null=True)
     location_area = models.CharField(max_length=100)
     location_address = models.TextField()
     latitude = models.DecimalField(max_digits=10, decimal_places=8, blank=True, null=True)
@@ -52,7 +55,6 @@ class Event(models.Model):
 
     class Meta:
         db_table = "events"
-
 
 class EventParticipant(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -123,11 +125,20 @@ class EventParticipant(models.Model):
                 )
 
     def delete(self, *args, **kwargs):
+        from ngumpulyuk_app.users.models import ActivityHistory
+
         was_confirmed = self.status == "confirmed"
         eid = self.event_id
+        uid = self.user_id
         super().delete(*args, **kwargs)
         if was_confirmed:
             Event.objects.filter(pk=eid).update(current_participants=F("current_participants") - 1)
+            ActivityHistory.objects.filter(
+                user_id=uid,
+                activity_type="joined_event",
+                related_type="event",
+                related_id=eid,
+            ).delete()
 
 
 class EventTag(models.Model):

@@ -60,8 +60,10 @@ class ActivityHistory(models.Model):
         max_length=50,
         choices=[
             ("joined_event", "joined_event"),
+            ("attended_event", "attended_event"),
             ("created_event", "created_event"),
             ("joined_community", "joined_community"),
+            ("left_community", "left_community"),
             ("created_community", "created_community"),
             ("posted_thread", "posted_thread"),
             ("commented", "commented"),

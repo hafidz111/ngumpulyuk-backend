@@ -2,6 +2,7 @@ from django.db.models import Q
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.serializers import ValidationError
 from rest_framework.views import APIView
 
 from ngumpulyuk_app.communities.serializers import CommunityWriteSerializer, ThreadWriteSerializer
@@ -62,7 +63,7 @@ def community_dict(c, request_user, detail=False):
     return base
 
 
-def thread_dict(t, request_user):
+def thread_dict(t, request_user, include_community_name=False):
     from ngumpulyuk_app.discussions.models import Like
 
     liked = False
@@ -70,7 +71,7 @@ def thread_dict(t, request_user):
         liked = Like.objects.filter(
             user=request_user, likeable_type="thread", likeable_id=t.id
         ).exists()
-    return {
+    data = {
         "id": str(t.id),
         "community_id": str(t.community_id),
         "title": t.title,
@@ -83,6 +84,9 @@ def thread_dict(t, request_user):
         "is_liked": liked,
         "created_at": t.created_at.isoformat().replace("+00:00", "Z") if t.created_at else None,
     }
+    if include_community_name:
+        data["community_name"] = t.community.name if getattr(t, "community", None) else None
+    return data
 
 
 @extend_schema_view(
@@ -217,8 +221,18 @@ class CommunityLeaveView(APIView):
             c = Community.objects.get(pk=id)
         except Community.DoesNotExist:
             return err("NOT_FOUND", "Community not found", status.HTTP_404_NOT_FOUND)
-        for m in CommunityMember.objects.filter(community=c, user=request.user):
+        memberships = CommunityMember.objects.filter(community=c, user=request.user)
+        if not memberships.exists():
+            return err("VALIDATION_ERROR", "Not a member", status.HTTP_400_BAD_REQUEST)
+        for m in memberships:
             m.delete()
+        ActivityHistory.objects.create(
+            user=request.user,
+            activity_type="left_community",
+            description=f"Left community: {c.name}",
+            related_type="community",
+            related_id=c.id,
+        )
         return ok(message="Successfully left community")
 
 
@@ -303,7 +317,7 @@ class CommunityThreadsView(APIView):
         limit = clamp_limit(request.query_params.get("limit"), 20)
         offset = clamp_offset(request.query_params.get("offset"))
         sort = request.query_params.get("sort") or "latest"
-        qs = Thread.objects.filter(community=c).select_related("author")
+        qs = Thread.objects.filter(community=c).select_related("author").prefetch_related("author__interest_rows")
         if sort == "popular":
             qs = qs.order_by("-like_count", "-created_at")
         else:
@@ -322,7 +336,25 @@ class CommunityThreadsView(APIView):
         if not CommunityMember.objects.filter(community=c, user=request.user).exists():
             return err("FORBIDDEN", "Join the community first", status.HTTP_403_FORBIDDEN)
         ser = ThreadWriteSerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
+        try:
+            ser.is_valid(raise_exception=True)
+        except ValidationError as ex:
+            detail = ex.detail
+            if isinstance(detail, dict):
+                images_error = detail.get("images")
+                if isinstance(images_error, dict):
+                    return err(
+                        images_error.get("code", "VALIDATION_ERROR"),
+                        images_error.get("message", "Invalid images payload"),
+                        status.HTTP_400_BAD_REQUEST,
+                    )
+                if isinstance(images_error, list) and images_error and isinstance(images_error[0], dict):
+                    return err(
+                        images_error[0].get("code", "VALIDATION_ERROR"),
+                        images_error[0].get("message", "Invalid images payload"),
+                        status.HTTP_400_BAD_REQUEST,
+                    )
+            raise
         v = ser.validated_data
         t = Thread.objects.create(
             community=c,

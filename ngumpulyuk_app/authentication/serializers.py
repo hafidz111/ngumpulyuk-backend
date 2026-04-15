@@ -151,6 +151,8 @@ def user_me_dict(user):
     raw_gender = getattr(user, "gender", None)
     gender = raw_gender if raw_gender else None
     created = getattr(user, "created_at", None) or getattr(user, "date_joined", None)
+    interests = list(user.interest_rows.values_list("interest_name", flat=True))
+    pref = getattr(user, "preferences_row", None)
     return {
         "id": str(user.id),
         "email": user.email,
@@ -162,6 +164,15 @@ def user_me_dict(user):
         "bio": getattr(user, "bio", None),
         "profile_picture": getattr(user, "profile_picture", None),
         "location": getattr(user, "location", None),
+        "interests": interests,
+        "preferences": {
+            "preferred_days": pref.preferred_days if pref else None,
+            "preferred_time": pref.preferred_time if pref else None,
+            "preferred_location": pref.preferred_location if pref else None,
+            "notification_enabled": pref.notification_enabled if pref else None,
+            "email_notification": pref.email_notification if pref else None,
+            "push_notification": pref.push_notification if pref else None,
+        },
         "onboarding_completed": getattr(user, "onboarding_completed", False),
         "is_verified": user.is_verified,
         "created_at": created.isoformat().replace("+00:00", "Z") if created else None,
@@ -171,6 +182,8 @@ def user_me_dict(user):
 def user_public_dict(user):
     """Shape for GET /users/:username (public profile)."""
     created = getattr(user, "created_at", None) or getattr(user, "date_joined", None)
+    interests = list(user.interest_rows.values_list("interest_name", flat=True))
+    pref = getattr(user, "preferences_row", None)
     return {
         "id": str(user.id),
         "username": getattr(user, "username", None),
@@ -178,5 +191,14 @@ def user_public_dict(user):
         "bio": getattr(user, "bio", None),
         "profile_picture": getattr(user, "profile_picture", None),
         "location": getattr(user, "location", None),
+        "interests": interests,
+        "preferences": {
+            "preferred_days": pref.preferred_days if pref else None,
+            "preferred_time": pref.preferred_time if pref else None,
+            "preferred_location": pref.preferred_location if pref else None,
+            "notification_enabled": pref.notification_enabled if pref else None,
+            "email_notification": pref.email_notification if pref else None,
+            "push_notification": pref.push_notification if pref else None,
+        },
         "created_at": created.isoformat().replace("+00:00", "Z") if created else None,
     }

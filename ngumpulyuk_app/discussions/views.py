@@ -47,7 +47,12 @@ class ThreadCommentsView(APIView):
             return err("NOT_FOUND", "Thread not found", status.HTTP_404_NOT_FOUND)
         limit = clamp_limit(request.query_params.get("limit"), 50)
         offset = clamp_offset(request.query_params.get("offset"))
-        qs = Comment.objects.filter(thread=t).select_related("author").order_by("created_at")
+        qs = (
+            Comment.objects.filter(thread=t)
+            .select_related("author")
+            .prefetch_related("author__interest_rows")
+            .order_by("created_at")
+        )
         total = qs.count()
         rows = qs[offset : offset + limit]
         user = request.user if request.user.is_authenticated else None
@@ -179,12 +184,17 @@ class ThreadFeedView(APIView):
         offset = clamp_offset(request.query_params.get("offset"))
 
         user_communities = CommunityMember.objects.filter(user=request.user).values_list("community_id", flat=True)
-        qs = Thread.objects.filter(community_id__in=user_communities).select_related("author").order_by("-created_at")
+        qs = (
+            Thread.objects.filter(community_id__in=user_communities)
+            .select_related("author", "community")
+            .prefetch_related("author__interest_rows")
+            .order_by("-created_at")
+        )
 
         total = qs.count()
         rows = qs[offset : offset + limit]
 
-        threads = [thread_dict(t, request.user) for t in rows]
+        threads = [thread_dict(t, request.user, include_community_name=True) for t in rows]
         return ok({"threads": threads, **pagination_meta(total, limit, offset)})
 
 

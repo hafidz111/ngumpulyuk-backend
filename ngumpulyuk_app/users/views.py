@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from django.contrib.auth import get_user_model
+from django.db.models import Q
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from ngumpulyuk_app.common.openapi_params import path_str, q_int
@@ -8,11 +9,13 @@ from ngumpulyuk_app.common.openapi_responses import R200
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
+from django.utils import timezone
 
 from ngumpulyuk_app.authentication.serializers import user_me_dict, user_public_dict
 from ngumpulyuk_app.common.api_response import err, ok
 from ngumpulyuk_app.common.presenters import clamp_limit, clamp_offset, pagination_meta
 from ngumpulyuk_app.users.models import ActivityHistory, UserInterest, UserPreferences
+from ngumpulyuk_app.events.models import EventParticipant
 from ngumpulyuk_app.users.serializers import (
     OnboardingSerializer,
     UserProfileUpdateSerializer,
@@ -131,6 +134,32 @@ class ActivityHistoryView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        today = timezone.localdate()
+        passed_participants = (
+            EventParticipant.objects.select_related("event")
+            .filter(user=request.user, status="confirmed")
+            .filter(
+                Q(event__end_date__isnull=False, event__end_date__lt=today)
+                | Q(event__end_date__isnull=True, event__event_date__lt=today)
+            )
+        )
+        for participant in passed_participants:
+            already_logged = ActivityHistory.objects.filter(
+                user=request.user,
+                activity_type="attended_event",
+                related_type="event",
+                related_id=participant.event_id,
+            ).exists()
+            if already_logged:
+                continue
+            ActivityHistory.objects.create(
+                user=request.user,
+                activity_type="attended_event",
+                description=f"Attended event: {participant.event.title}",
+                related_type="event",
+                related_id=participant.event_id,
+            )
+
         limit = clamp_limit(request.query_params.get("limit"), 20)
         offset = clamp_offset(request.query_params.get("offset"))
         qs = ActivityHistory.objects.filter(user=request.user).order_by("-created_at")
@@ -153,3 +182,22 @@ class ActivityHistoryView(APIView):
                 **pagination_meta(total, limit, offset),
             }
         )
+
+
+@extend_schema_view(
+    get=extend_schema(
+        tags=USERS_TAG,
+        summary="Daftar ID event yang saya ikuti",
+        responses=R200,
+    ),
+)
+class JoinedEventIdsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        event_ids = list(
+            EventParticipant.objects.filter(user=request.user, status="confirmed").values_list(
+                "event_id", flat=True
+            )
+        )
+        return ok({"event_ids": [str(event_id) for event_id in event_ids]})

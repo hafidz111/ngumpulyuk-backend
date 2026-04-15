@@ -1,5 +1,8 @@
+from datetime import datetime, time
+
 from django.db import transaction
 from django.db.models import Q
+from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -81,7 +84,14 @@ class EventListCreateView(APIView):
             qs = qs.order_by("event_date", "event_time")
         total = qs.count()
         page = qs[offset : offset + limit]
-        events = [event_list_item(e) for e in page]
+        joined_event_ids = set()
+        if request.user.is_authenticated:
+            joined_event_ids = set(
+                EventParticipant.objects.filter(user=request.user, status="confirmed").values_list(
+                    "event_id", flat=True
+                )
+            )
+        events = [event_list_item(e, is_joined=e.id in joined_event_ids) for e in page]
         return ok({"events": events, **pagination_meta(total, limit, offset)})
 
     def post(self, request):
@@ -90,6 +100,11 @@ class EventListCreateView(APIView):
         v = ser.validated_data
         t = ser.parse_time(v["event_time"])
         end_t = ser.parse_time(v["end_time"]) if v.get("end_time") else None
+        registration_deadline_time = (
+            ser.parse_time(v["registration_deadline_time"], "registration_deadline_time")
+            if v.get("registration_deadline_time")
+            else None
+        )
         with transaction.atomic():
             ev = Event.objects.create(
                 creator=request.user,
@@ -101,6 +116,9 @@ class EventListCreateView(APIView):
                 event_time=t,
                 end_date=v.get("end_date"),
                 end_time=end_t,
+                has_registration_deadline=v.get("has_registration_deadline", False),
+                registration_deadline=v.get("registration_deadline"),
+                registration_deadline_time=registration_deadline_time,
                 location_area=v["location_area"],
                 location_address=v["location_address"],
                 latitude=v.get("latitude"),
@@ -172,6 +190,11 @@ class EventDetailView(APIView):
         v = ser.validated_data
         t = ser.parse_time(v["event_time"])
         end_t = ser.parse_time(v["end_time"]) if v.get("end_time") else None
+        registration_deadline_time = (
+            ser.parse_time(v["registration_deadline_time"], "registration_deadline_time")
+            if v.get("registration_deadline_time")
+            else None
+        )
         with transaction.atomic():
             ev.title = v["title"]
             ev.description = v["description"]
@@ -181,6 +204,9 @@ class EventDetailView(APIView):
             ev.event_time = t
             ev.end_date = v.get("end_date")
             ev.end_time = end_t
+            ev.has_registration_deadline = v.get("has_registration_deadline", False)
+            ev.registration_deadline = v.get("registration_deadline")
+            ev.registration_deadline_time = registration_deadline_time
             ev.location_area = v["location_area"]
             ev.location_address = v["location_address"]
             ev.latitude = v.get("latitude")
@@ -224,6 +250,15 @@ class EventJoinView(APIView):
         ep = EventParticipant.objects.filter(event=ev, user=request.user).first()
         if ep and ep.status == "confirmed":
             return err("ALREADY_JOINED", "Already joined", status.HTTP_400_BAD_REQUEST)
+        registration_deadline_date = ev.registration_deadline or ev.event_date
+        registration_deadline_time = ev.registration_deadline_time
+        if registration_deadline_time is None:
+            registration_deadline_time = time.max
+        deadline_dt = datetime.combine(registration_deadline_date, registration_deadline_time)
+        if timezone.is_naive(deadline_dt):
+            deadline_dt = timezone.make_aware(deadline_dt, timezone.get_current_timezone())
+        if timezone.now() > deadline_dt:
+            return err("REGISTRATION_CLOSED", "Event registration is closed", status.HTTP_400_BAD_REQUEST)
         if ev.current_participants >= ev.max_participants:
             return err("EVENT_FULL", "Event has reached maximum participants", status.HTTP_400_BAD_REQUEST)
         if ep:
@@ -298,12 +333,10 @@ class EventParticipantsView(APIView):
         rows = qs[offset : offset + limit]
         participants = [
             {
-                "user_id": str(p.user_id),
+                "id": str(p.user_id),
                 "username": p.user.username,
                 "full_name": p.user.full_name,
                 "profile_picture": p.user.profile_picture,
-                "status": p.status,
-                "joined_at": p.joined_at.isoformat().replace("+00:00", "Z"),
             }
             for p in rows
         ]

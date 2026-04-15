@@ -27,11 +27,18 @@ def pagination_meta(total, limit, offset):
 def mini_user(u):
     if not u:
         return None
+    interest_rows = getattr(u, "interest_rows", None)
+    if interest_rows is not None and hasattr(interest_rows, "all"):
+        interests = [row.interest_name for row in interest_rows.all()]
+    else:
+        interests = []
     return {
         "id": str(u.id),
         "username": u.username,
         "full_name": u.full_name,
         "profile_picture": u.profile_picture,
+        "interest": interests[0] if interests else None,
+        "interests": interests,
     }
 
 
