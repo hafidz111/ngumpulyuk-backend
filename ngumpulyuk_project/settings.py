@@ -42,12 +42,11 @@ CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-     "https://ngumpulyuk-id.vercel.app",
+    FRONTEND_URL,
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://ngumpulyuk-id.vercel.app",
+    FRONTEND_URL,
 ]
 
 CORS_ALLOW_HEADERS = [
