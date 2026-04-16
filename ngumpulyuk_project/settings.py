@@ -137,6 +137,7 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'anon': '100/minute',
         'user': '500/minute',
+        'blast_notifications': '10/hour',
     },
     'EXCEPTION_HANDLER': 'ngumpulyuk_app.common.exceptions.custom_exception_handler',
 }
@@ -173,7 +174,7 @@ SPECTACULAR_SETTINGS = {
         {'name': 'Communities', 'description': 'Komunitas, anggota, thread di dalam komunitas'},
         {'name': 'Discussions', 'description': 'Thread, komentar, suka'},
         {'name': 'Notifications', 'description': 'Notifikasi pengguna'},
-        {'name': 'Notifications (Admin)', 'description': 'Blast notifikasi — hanya akun staff (is_staff)'},
+        {'name': 'Notifications (Admin)', 'description': 'Blast notifikasi'},
         {'name': 'Recommendations', 'description': 'Rekomendasi event (AI/heuristik)'},
     ],
 }

@@ -4,8 +4,8 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from ngumpulyuk_app.notifications import services
-from ngumpulyuk_app.notifications.models import Notification
-from ngumpulyuk_app.users.models import UserPreferences
+from ngumpulyuk_app.notifications.models import BlastNotificationAudit, Notification
+from ngumpulyuk_app.users.models import UserInterest, UserPreferences
 
 User = get_user_model()
 
@@ -128,8 +128,53 @@ class BlastNotificationAPITests(TestCase):
             format="json",
         )
         self.assertEqual(r.status_code, status.HTTP_200_OK)
-        self.assertEqual(r.data["data"]["sent"], 1)
+        self.assertEqual(r.data["data"]["queued_count"], 1)
         self.assertEqual(
             Notification.objects.filter(user=self.member, type="admin_broadcast").count(),
             1,
         )
+        self.assertEqual(BlastNotificationAudit.objects.count(), 1)
+
+    def test_blast_by_interests(self):
+        self.client.force_authenticate(user=self.staff)
+        UserInterest.objects.create(user=self.member, interest_name="running")
+        r = self.client.post(
+            "/api/v1/notifications/blast/",
+            {
+                "title": "Interest blast",
+                "message": "Ada event baru sesuai minatmu",
+                "interests": ["running"],
+            },
+            format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertEqual(r.data["data"]["target_mode"], "interests")
+        self.assertEqual(r.data["data"]["queued_count"], 1)
+
+    def test_blast_invalid_target_mode_combination(self):
+        self.client.force_authenticate(user=self.staff)
+        r = self.client.post(
+            "/api/v1/notifications/blast/",
+            {
+                "title": "Bad payload",
+                "message": "x",
+                "all_users": True,
+                "user_ids": [str(self.member.id)],
+                "confirm": "BLAST_ALL_USERS",
+            },
+            format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_blast_invalid_interest_returns_400(self):
+        self.client.force_authenticate(user=self.staff)
+        r = self.client.post(
+            "/api/v1/notifications/blast/",
+            {
+                "title": "Bad interest",
+                "message": "x",
+                "interests": ["__unknown_interest__"],
+            },
+            format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)

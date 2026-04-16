@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Iterable, Sequence
 
 from django.utils import timezone
 
-from ngumpulyuk_app.notifications.models import Notification
+from ngumpulyuk_app.notifications.models import BlastNotificationAudit, Notification
 from ngumpulyuk_app.users.models import UserPreferences
 
 if TYPE_CHECKING:
@@ -178,12 +178,14 @@ def create_notifications_bulk(
 
 def blast_admin_notifications(
     *,
+    admin_user,
     title: str,
     message: str,
     link_url: str | None = None,
     user_ids: list | None = None,
     all_users: bool = False,
-) -> int:
+    interests: list[str] | None = None,
+) -> dict:
     """
     Staff-only: create admin_broadcast notifications + FCM for each target user.
     Processes in chunks to limit memory. Skips users with notification_enabled=False via bulk_create path.
@@ -195,10 +197,21 @@ def blast_admin_notifications(
     chunk: list = []
     chunk_size = 300
 
+    target_mode = "user_ids"
     if all_users:
+        target_mode = "all_users"
         qs = User.objects.filter(is_active=True).order_by("id")
+    elif interests:
+        target_mode = "interests"
+        qs = (
+            User.objects.filter(is_active=True, interest_rows__interest_name__in=interests)
+            .distinct()
+            .order_by("id")
+        )
     else:
         qs = User.objects.filter(is_active=True, id__in=(user_ids or [])).order_by("id")
+
+    target_count = qs.count()
 
     for user in qs.iterator(chunk_size=chunk_size):
         chunk.append(user)
@@ -221,4 +234,23 @@ def blast_admin_notifications(
             link_url=link_url,
             related_id=None,
         )
-    return total
+    skipped_count = max(target_count - total, 0)
+    BlastNotificationAudit.objects.create(
+        admin=admin_user,
+        title=title,
+        target_mode=target_mode,
+        target_count=target_count,
+        queued_count=total,
+        skipped_count=skipped_count,
+        payload_summary={
+            "link_url": link_url,
+            "user_ids_count": len(user_ids or []),
+            "interests": interests or [],
+        },
+    )
+    return {
+        "target_mode": target_mode,
+        "target_count": target_count,
+        "queued_count": total,
+        "skipped_count": skipped_count,
+    }

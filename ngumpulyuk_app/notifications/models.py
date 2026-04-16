@@ -60,3 +60,29 @@ class PushDevice(models.Model):
 
     class Meta:
         db_table = "push_devices"
+
+
+class BlastNotificationAudit(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    admin = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="blast_notification_audits",
+    )
+    title = models.CharField(max_length=200)
+    target_mode = models.CharField(
+        max_length=30,
+        choices=[
+            ("user_ids", "user_ids"),
+            ("all_users", "all_users"),
+            ("interests", "interests"),
+        ],
+    )
+    target_count = models.PositiveIntegerField(default=0)
+    queued_count = models.PositiveIntegerField(default=0)
+    skipped_count = models.PositiveIntegerField(default=0)
+    payload_summary = models.JSONField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "blast_notification_audits"

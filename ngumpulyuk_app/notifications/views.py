@@ -4,6 +4,7 @@ from ngumpulyuk_app.common.openapi_params import path_uuid, q_int, q_str
 from ngumpulyuk_app.common.openapi_responses import R200
 from rest_framework import status
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from ngumpulyuk_app.common.api_response import err, ok
@@ -156,7 +157,7 @@ class PushDeviceView(APIView):
 @extend_schema_view(
     post=extend_schema(
         tags=NOTIFICATIONS_ADMIN_TAG,
-        summary="Blast notifikasi + push (staff)",
+        summary="Blast notifikasi",
         description="Hanya **is_staff**. Membuat notifikasi in-app bertipe `admin_broadcast` dan mengirim FCM "
         "ke pengguna yang punya token. `all_users` wajib disertai `confirm`: `BLAST_ALL_USERS`.",
         request=BlastNotificationSerializer,
@@ -165,22 +166,34 @@ class PushDeviceView(APIView):
 )
 class BlastNotificationView(APIView):
     permission_classes = [IsAuthenticated, IsAdminUser]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "blast_notifications"
 
     def post(self, request):
         ser = BlastNotificationSerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
+        if not ser.is_valid():
+            return err(
+                "VALIDATION_ERROR",
+                "Invalid blast payload",
+                status.HTTP_400_BAD_REQUEST,
+                details=ser.errors,
+            )
         v = ser.validated_data
-        sent = blast_admin_notifications(
+        result = blast_admin_notifications(
+            admin_user=request.user,
             title=v["title"],
             message=v["message"],
             link_url=(v.get("link_url") or "").strip() or None,
             user_ids=v.get("user_ids"),
             all_users=v.get("all_users", False),
+            interests=v.get("interests"),
         )
         return ok(
             data={
-                "sent": sent,
-                "all_users": v.get("all_users", False),
+                "target_mode": result["target_mode"],
+                "target_count": result["target_count"],
+                "queued_count": result["queued_count"],
+                "skipped_count": result["skipped_count"],
             },
             message="Blast queued",
         )

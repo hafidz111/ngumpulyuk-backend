@@ -4,10 +4,10 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
-from ngumpulyuk_app.common.openapi_params import path_str, q_int
+from ngumpulyuk_app.common.openapi_params import path_str, q_int, q_str
 from ngumpulyuk_app.common.openapi_responses import R200
 from rest_framework import status
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.views import APIView
 from django.utils import timezone
 
@@ -16,6 +16,7 @@ from ngumpulyuk_app.common.api_response import err, ok
 from ngumpulyuk_app.common.presenters import clamp_limit, clamp_offset, pagination_meta
 from ngumpulyuk_app.communities.models import CommunityMember
 from ngumpulyuk_app.events.models import Event, EventParticipant
+from ngumpulyuk_app.users.interests import get_interest_popularity, get_interest_taxonomy
 from ngumpulyuk_app.users.models import ActivityHistory, UserInterest, UserPreferences
 from ngumpulyuk_app.users.serializers import (
     OnboardingSerializer,
@@ -29,10 +30,10 @@ USERS_TAG = ["Users"]
 
 
 @extend_schema_view(
-    get=extend_schema(tags=USERS_TAG, summary="Profil saya (GET)", responses=R200),
+    get=extend_schema(tags=USERS_TAG, summary="Profil saya", responses=R200),
     put=extend_schema(
         tags=USERS_TAG,
-        summary="Update profil saya (PUT)",
+        summary="Update profil saya",
         request=UserProfileUpdateSerializer,
         responses=R200,
     ),
@@ -273,5 +274,67 @@ class ParticipationSummaryView(APIView):
                     }
                     for ev in created_events_qs
                 ],
+            }
+        )
+
+
+@extend_schema_view(
+    get=extend_schema(
+        tags=USERS_TAG,
+        summary="Search user untuk blast admin",
+        parameters=[
+            q_str("search", "Cari by full_name / username / email"),
+            q_int("limit", "Jumlah item (default 10, max 100)", 10),
+            q_int("offset", "Skip N item", 0),
+        ],
+        responses=R200,
+    ),
+)
+class AdminUserSearchView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get(self, request):
+        limit = clamp_limit(request.query_params.get("limit"), 10, max_val=100)
+        offset = clamp_offset(request.query_params.get("offset"))
+        search = (request.query_params.get("search") or "").strip()
+        qs = User.objects.all().order_by("-created_at")
+        if search:
+            qs = qs.filter(
+                Q(full_name__icontains=search)
+                | Q(username__icontains=search)
+                | Q(email__icontains=search)
+            )
+        count = qs.count()
+        rows = qs[offset : offset + limit]
+        results = [
+            {
+                "id": str(u.id),
+                "full_name": u.full_name,
+                "username": u.username,
+                "email": u.email,
+            }
+            for u in rows
+        ]
+        return ok({"results": results, "count": count})
+
+
+@extend_schema_view(
+    get=extend_schema(
+        tags=USERS_TAG,
+        summary="Interest taxonomy (source of truth)",
+        responses=R200,
+    ),
+)
+class InterestTaxonomyView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        ranked = get_interest_popularity()
+        return ok(
+            {
+                "interests": [row["interest"] for row in ranked],
+                "ranked_interests": ranked,
+                "total_interests": len(ranked),
+                "ordering": "count_desc_then_interest_asc",
             }
         )

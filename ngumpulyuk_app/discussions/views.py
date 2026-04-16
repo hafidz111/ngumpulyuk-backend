@@ -14,6 +14,7 @@ from ngumpulyuk_app.common.presenters import clamp_limit, clamp_offset, mini_use
 from ngumpulyuk_app.users.models import ActivityHistory
 from ngumpulyuk_app.discussions.models import Comment, Like, Thread
 from ngumpulyuk_app.notifications.notify import notify_thread_new_comment
+from ngumpulyuk_app.recommendations.services import record_recommendation_signal
 
 DISCUSSIONS_TAG = ["Discussions"]
 
@@ -96,6 +97,14 @@ class ThreadCommentsView(APIView):
             related_id=t.id,
         )
         notify_thread_new_comment(c, t)
+        if t.related_event_id:
+            record_recommendation_signal(
+                user=request.user,
+                event=t.related_event,
+                signal_type="view",
+                source="thread_comment",
+                dedupe_minutes=15,
+            )
         return ok(
             {
                 "id": str(c.id),
@@ -133,9 +142,17 @@ class ThreadLikeView(APIView):
             t = Thread.objects.get(pk=id)
         except Thread.DoesNotExist:
             return err("NOT_FOUND", "Thread not found", status.HTTP_404_NOT_FOUND)
-        Like.objects.get_or_create(
+        _, created = Like.objects.get_or_create(
             user=request.user, likeable_type="thread", likeable_id=t.id
         )
+        if created and t.related_event_id:
+            record_recommendation_signal(
+                user=request.user,
+                event=t.related_event,
+                signal_type="like",
+                source="thread_like",
+                dedupe_minutes=30,
+            )
         return ok(message="Thread liked")
 
     def delete(self, request, id):
@@ -158,12 +175,20 @@ class CommentLikeView(APIView):
 
     def post(self, request, id):
         try:
-            c = Comment.objects.get(pk=id)
+            c = Comment.objects.select_related("thread__related_event").get(pk=id)
         except Comment.DoesNotExist:
             return err("NOT_FOUND", "Comment not found", status.HTTP_404_NOT_FOUND)
-        Like.objects.get_or_create(
+        _, created = Like.objects.get_or_create(
             user=request.user, likeable_type="comment", likeable_id=c.id
         )
+        if created and c.thread and c.thread.related_event_id:
+            record_recommendation_signal(
+                user=request.user,
+                event=c.thread.related_event,
+                signal_type="like",
+                source="comment_like",
+                dedupe_minutes=30,
+            )
         return ok(message="Comment liked")
 
 @extend_schema_view(

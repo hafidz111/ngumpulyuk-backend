@@ -20,6 +20,7 @@ from ngumpulyuk_app.notifications.notify import (
     notify_new_event,
     snapshot_event,
 )
+from ngumpulyuk_app.recommendations.services import record_recommendation_signal
 from ngumpulyuk_app.users.models import ActivityHistory
 
 EVENTS_TAG = ["Events"]
@@ -155,14 +156,14 @@ class EventListCreateView(APIView):
     ),
     put=extend_schema(
         tags=EVENTS_TAG,
-        summary="Update event (pemilik)",
+        summary="Update event",
         parameters=[path_uuid("id", "ID event")],
         request=EventWriteSerializer,
         responses=R200,
     ),
     delete=extend_schema(
         tags=EVENTS_TAG,
-        summary="Hapus event (pemilik)",
+        summary="Hapus event",
         parameters=[path_uuid("id", "ID event")],
         responses=R200,
     ),
@@ -184,6 +185,14 @@ class EventDetailView(APIView):
         if not ev:
             return err("NOT_FOUND", "Event not found", status.HTTP_404_NOT_FOUND)
         user = request.user if request.user.is_authenticated else None
+        if user and user.id != ev.creator_id:
+            record_recommendation_signal(
+                user=user,
+                event=ev,
+                signal_type="view",
+                source="event_detail",
+                dedupe_minutes=10,
+            )
         return ok(event_detail(ev, user))
 
     def put(self, request, id):
@@ -280,6 +289,13 @@ class EventJoinView(APIView):
             ep.save()
         else:
             ep = EventParticipant.objects.create(event=ev, user=request.user, status="confirmed")
+        record_recommendation_signal(
+            user=request.user,
+            event=ev,
+            signal_type="join",
+            source="event_join",
+            dedupe_minutes=120,
+        )
         ep.refresh_from_db()
         ev.refresh_from_db()
         if ev.current_participants >= ev.max_participants:
