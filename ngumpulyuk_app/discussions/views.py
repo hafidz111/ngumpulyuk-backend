@@ -13,6 +13,7 @@ from ngumpulyuk_app.common.api_response import err, ok
 from ngumpulyuk_app.common.presenters import clamp_limit, clamp_offset, mini_user, pagination_meta
 from ngumpulyuk_app.users.models import ActivityHistory
 from ngumpulyuk_app.discussions.models import Comment, Like, Thread
+from ngumpulyuk_app.notifications.notify import notify_thread_new_comment
 
 DISCUSSIONS_TAG = ["Discussions"]
 
@@ -94,6 +95,7 @@ class ThreadCommentsView(APIView):
             related_type="thread",
             related_id=t.id,
         )
+        notify_thread_new_comment(c, t)
         return ok(
             {
                 "id": str(c.id),

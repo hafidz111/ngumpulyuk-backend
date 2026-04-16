@@ -14,6 +14,12 @@ from ngumpulyuk_app.common.openapi_responses import R200, R201
 from ngumpulyuk_app.common.presenters import clamp_limit, clamp_offset, pagination_meta
 from ngumpulyuk_app.events.models import Event, EventParticipant, EventTag
 from ngumpulyuk_app.events.serializers import EventWriteSerializer, event_detail, event_list_item
+from ngumpulyuk_app.notifications.notify import (
+    notify_event_full,
+    notify_event_updated,
+    notify_new_event,
+    snapshot_event,
+)
 from ngumpulyuk_app.users.models import ActivityHistory
 
 EVENTS_TAG = ["Events"]
@@ -136,6 +142,7 @@ class EventListCreateView(APIView):
                 related_type="event",
                 related_id=ev.id,
             )
+        notify_new_event(ev)
         return ok(event_detail(ev, request.user), message="Event created successfully", status_code=status.HTTP_201_CREATED)
 
 
@@ -195,6 +202,7 @@ class EventDetailView(APIView):
             if v.get("registration_deadline_time")
             else None
         )
+        old_snapshot = snapshot_event(ev)
         with transaction.atomic():
             ev.title = v["title"]
             ev.description = v["description"]
@@ -218,6 +226,12 @@ class EventDetailView(APIView):
             ev.tags.all().delete()
             for tag in v.get("tags") or []:
                 EventTag.objects.create(event=ev, tag_name=tag)
+        notify_event_updated(
+            ev,
+            editor_id=request.user.id,
+            old_snapshot=old_snapshot,
+            new_snapshot=snapshot_event(ev),
+        )
         return ok(event_detail(ev, request.user), message="Event updated successfully")
 
     def delete(self, request, id):
@@ -267,6 +281,9 @@ class EventJoinView(APIView):
         else:
             ep = EventParticipant.objects.create(event=ev, user=request.user, status="confirmed")
         ep.refresh_from_db()
+        ev.refresh_from_db()
+        if ev.current_participants >= ev.max_participants:
+            notify_event_full(ev)
         return ok(
             {
                 "event_id": str(ev.id),

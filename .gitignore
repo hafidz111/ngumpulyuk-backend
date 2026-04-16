@@ -21,6 +21,9 @@ staticfiles/
 
 # Secrets
 *.env
+# Firebase / GCP service account JSON
+*-firebase-adminsdk-*.json
+firebase-service-account.json
 
 # VSCode / IDE
 .vscode/
@@ -37,11 +40,11 @@ staticfiles/
 htmlcov/
 .pytest_cache/
 
-# Migrations (optional, biasanya tetap disimpan)
+# Migrations
 # */migrations/*
 # !*/migrations/__init__.py
 
-# Node (kalau ada React di repo yang sama)
+# Node
 node_modules/
 dist/
 build/

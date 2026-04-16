@@ -81,7 +81,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # Harus setelah SecurityMiddleware
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -113,9 +113,6 @@ WSGI_APPLICATION = 'ngumpulyuk_project.wsgi.application'
 
 
 # Database
-# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
-# Jika ada DATABASE_URL di .env, gunakan itu (PostgreSQL/Supabase).
-# Jika tidak ada dan di mode development, gunakan SQLite sebagai fallback.
 
 DATABASES = {}
 if DJANGO_ENV == 'production' or env('DATABASE_URL', default=None):
@@ -149,10 +146,8 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': 'REST API untuk platform NgumpulYuk (events, communities, threads, notifications). '
     'Gunakan **Authorize** dan skema Bearer: `Bearer <access_token>`.',
     'VERSION': '1.0.0',
-    # Path API di-mount di /api/v1 — di schema ditampilkan tanpa prefix ini (bukan mengelompokkan tag "v1").
     'SCHEMA_PATH_PREFIX': '/api/v1',
     'SERVE_INCLUDE_SCHEMA': False,
-    # Satukan jwtAuth (SimpleJWT) + BearerAuth agar Swagger "Authorize" satu kali berlaku semua.
     'POSTPROCESSING_HOOKS': [
         'ngumpulyuk_app.common.spectacular_hooks.use_bearer_auth_only',
     ],
@@ -178,6 +173,7 @@ SPECTACULAR_SETTINGS = {
         {'name': 'Communities', 'description': 'Komunitas, anggota, thread di dalam komunitas'},
         {'name': 'Discussions', 'description': 'Thread, komentar, suka'},
         {'name': 'Notifications', 'description': 'Notifikasi pengguna'},
+        {'name': 'Notifications (Admin)', 'description': 'Blast notifikasi — hanya akun staff (is_staff)'},
         {'name': 'Recommendations', 'description': 'Rekomendasi event (AI/heuristik)'},
     ],
 }
@@ -232,8 +228,6 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Email
-# Development  → Mailtrap (sandbox, email tidak dikirim ke inbox asli)
-# Production   → Gmail SMTP (email dikirim ke inbox asli)
 if DJANGO_ENV == 'production':
     EMAIL_HOST = 'smtp.gmail.com'
     EMAIL_PORT = 587
@@ -252,3 +246,6 @@ DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='info@ngumpulyuk.id')
 GOOGLE_CLIENT_ID=env('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_SECRET=env('GOOGLE_CLIENT_SECRET')
 SOCIAL_AUTH_PASSWORD=env('SOCIAL_AUTH_PASSWORD')
+
+# Firebase Cloud Messaging
+FIREBASE_CREDENTIALS_PATH = env('FIREBASE_CREDENTIALS_PATH', default=None)

@@ -21,6 +21,7 @@ class Notification(models.Model):
             ("comment_reply", "comment_reply"),
             ("new_member", "new_member"),
             ("event_full", "event_full"),
+            ("admin_broadcast", "admin_broadcast"),
         ],
     )
     title = models.CharField(max_length=200)
@@ -32,3 +33,30 @@ class Notification(models.Model):
 
     class Meta:
         db_table = "notifications"
+
+
+class PushDevice(models.Model):
+    """FCM registration tokens per user (multiple devices)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="push_devices",
+    )
+    token = models.CharField(max_length=512, unique=True, db_index=True)
+    platform = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        choices=[
+            ("android", "android"),
+            ("ios", "ios"),
+            ("web", "web"),
+        ],
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "push_devices"

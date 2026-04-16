@@ -19,6 +19,7 @@ from ngumpulyuk_app.common.presenters import (
 from ngumpulyuk_app.communities.models import Community, CommunityMember
 from ngumpulyuk_app.events.models import EventParticipant
 from ngumpulyuk_app.discussions.models import Thread
+from ngumpulyuk_app.notifications.notify import notify_community_new_member, notify_community_new_thread
 from ngumpulyuk_app.users.models import ActivityHistory
 
 COMMUNITIES_TAG = ["Communities"]
@@ -234,6 +235,7 @@ class CommunityJoinView(APIView):
             related_type="community",
             related_id=c.id,
         )
+        notify_community_new_member(c, new_member=request.user)
         return ok(message="Successfully joined community")
 
 
@@ -420,6 +422,7 @@ class CommunityThreadsView(APIView):
             related_type="thread",
             related_id=t.id,
         )
+        notify_community_new_thread(t, c)
         return ok(thread_dict(t, request.user), message="Thread created successfully", status_code=status.HTTP_201_CREATED)
 
 @extend_schema_view(
