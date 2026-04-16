@@ -15,4 +15,5 @@ urlpatterns = [
     path("api/v1/", include("ngumpulyuk_app.discussions.urls")),
     path("api/v1/", include("ngumpulyuk_app.notifications.urls")),
     path("api/v1/", include("ngumpulyuk_app.recommendations.urls")),
+    path("api/v1/", include("ngumpulyuk_app.chat.urls")),
 ]

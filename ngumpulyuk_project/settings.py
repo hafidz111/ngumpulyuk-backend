@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     'ngumpulyuk_app.discussions.apps.DiscussionsConfig',
     'ngumpulyuk_app.notifications.apps.NotificationsConfig',
     'ngumpulyuk_app.recommendations.apps.RecommendationsConfig',
+    'ngumpulyuk_app.chat.apps.ChatConfig',
     'ngumpulyuk_app.social_accounts.apps.SocialAccountsConfig',
     'rest_framework',
     'django.contrib.admin',
@@ -138,6 +139,8 @@ REST_FRAMEWORK = {
         'anon': '100/minute',
         'user': '500/minute',
         'blast_notifications': '10/hour',
+        'chat': '45/minute',
+        'chat_feedback': '120/minute',
     },
     'EXCEPTION_HANDLER': 'ngumpulyuk_app.common.exceptions.custom_exception_handler',
 }
@@ -176,8 +179,14 @@ SPECTACULAR_SETTINGS = {
         {'name': 'Notifications', 'description': 'Notifikasi pengguna'},
         {'name': 'Notifications (Admin)', 'description': 'Blast notifikasi'},
         {'name': 'Recommendations', 'description': 'Rekomendasi event (AI/heuristik)'},
+        {'name': 'Chat', 'description': 'Asisten chat (FAQ + retrieval; LLM opsional)'},
     ],
 }
+
+# Chat assistant — Gemini (Google AI Studio) opsional; tanpa key = mode rule + retrieval saja
+CHAT_LLM_ENABLED = env.bool('CHAT_LLM_ENABLED', default=False)
+CHAT_GEMINI_API_KEY = env('CHAT_GEMINI_API_KEY', default=None)
+CHAT_GEMINI_MODEL = env('CHAT_GEMINI_MODEL', default='gemini-2.0-flash')
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
