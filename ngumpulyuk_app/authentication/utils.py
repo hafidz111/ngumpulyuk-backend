@@ -3,6 +3,17 @@ from django.core.mail import EmailMessage
 from .models import User, OneTimePassword
 from django.conf import settings
 
+
+def _outgoing_from_email():
+    """
+    Production: show brand address (must match send-as / domain policy of SMTP).
+    Development: use sandbox SMTP identity (e.g. Mailtrap username).
+    """
+    if getattr(settings, "DJANGO_ENV", "") == "production":
+        return settings.DEFAULT_FROM_EMAIL
+    return settings.EMAIL_HOST_USER
+
+
 def generateOtp():
     otp=''
     for i in range(6):
@@ -16,7 +27,7 @@ def send_code_to_user(email):
     user=User.objects.get(email=email)
     current_site='myAuth.com'
     email_body=f'Hi {user.full_name} thanks for signing up on {current_site} please verify your email with the \n one time passcode {otp_code}'
-    from_email=settings.DEFAULT_FROM_EMAIL
+    from_email = _outgoing_from_email()
 
     OneTimePassword.objects.filter(user=user).delete()
     OneTimePassword.objects.create(user=user, code=otp_code)
@@ -27,7 +38,7 @@ def send_normal_email(data):
     email=EmailMessage(
         subject=data['email_subject'],
         body=data['email_body'],
-        from_email=settings.EMAIL_HOST_USER,
+        from_email=_outgoing_from_email(),
         to=[data['to_email']]
     )
     email.send()
