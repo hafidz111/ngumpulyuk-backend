@@ -29,7 +29,7 @@ def _event_link(ev: Event) -> str:
 
 
 def _community_link(c: Community) -> str:
-    return f"/communities/{c.id}"
+    return f"/community/{c.id}"
 
 
 def _thread_link(t: Thread) -> str:
