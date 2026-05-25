@@ -2,24 +2,24 @@ services:
   - type: web
     name: ngumpulyuk-backend
     runtime: python
-    region: singapore          # Pilih region terdekat
-    plan: free                 # Ganti ke 'starter' atau 'standard' untuk production
+    region: singapore
+    plan: free
 
     buildCommand: >
       pip install -r requirements.txt &&
       python manage.py migrate &&
       python manage.py collectstatic --noinput
 
-    startCommand: gunicorn ngumpulyuk_project.wsgi:application --workers 2 --timeout 60
+    startCommand: gunicorn ngumpulyuk_project.wsgi:application --workers 2 --timeout 120 --graceful-timeout 30
+
+    healthCheckPath: /health/
 
     envVars:
-      # ─── Wajib diisi manual di Render Dashboard ──────────────────
-      # Jangan tulis nilai rahasia di sini! Set via Render → Environment
       - key: SECRET_KEY
-        generateValue: true      # Render akan generate otomatis
+        generateValue: true
 
       - key: DATABASE_URL
-        sync: false              # Diisi manual dari Supabase di Render dashboard
+        sync: false
 
       - key: GOOGLE_CLIENT_ID
         sync: false
@@ -31,26 +31,26 @@ services:
         sync: false
 
       - key: EMAIL_HOST_USER
-        sync: false              # Gmail address untuk production
+        sync: false
 
       - key: EMAIL_HOST_PASSWORD
-        sync: false              # Gmail App Password (16 karakter)
+        sync: false
 
       - key: DEFAULT_FROM_EMAIL
-        sync: false              # Contoh: info@ngumpulyuk.id
+        sync: false
 
       - key: FRONTEND_URL
         sync: false
 
-      # ─── Nilai tetap untuk production ────────────────────────────
+      # ───  production ────────────────────────────
       - key: DJANGO_ENV
         value: production
 
       - key: DEBUG
-        value: "False"
+        value: 'False'
 
       - key: ALLOWED_HOSTS
-        value: ".onrender.com"   # Ganti dengan domain kustom jika ada
+        value: '.onrender.com'
 
       - key: PYTHON_VERSION
-        value: "3.11.0"
+        value: '3.11.0'
