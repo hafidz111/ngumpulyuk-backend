@@ -51,3 +51,10 @@ class EventListUpcomingFilterTests(TestCase):
         ids = {e["id"] for e in r.data["data"]["events"]}
         self.assertIn(str(self.future.id), ids)
         self.assertNotIn(str(self.past_stale_status.id), ids)
+
+    def test_past_list_includes_passed_dates(self):
+        r = self.client.get("/api/v1/events/?status=past&sort=date_desc")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        ids = {e["id"] for e in r.data["data"]["events"]}
+        self.assertNotIn(str(self.future.id), ids)
+        self.assertIn(str(self.past_stale_status.id), ids)

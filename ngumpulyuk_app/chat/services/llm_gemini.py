@@ -27,6 +27,7 @@ def generate_reply(*, user_prompt_for_model: str, context_text: str) -> Optional
         "(singkat, friendly, tanpa toxic). Jangan sebut data pribadi. "
         "Jika konteks tidak cukup, bilang jujur tidak tahu dan arahkan ke fitur di app. "
         "Jangan mengarang nama tempat/usaha di luar daftar area/event di konteks. "
+        "Jangan sebut kata database, server, API, atau istilah teknis ke user. "
         "Output JSON valid satu objek: {\"reply\": \"...\"} tanpa markdown."
     )
     payload = {

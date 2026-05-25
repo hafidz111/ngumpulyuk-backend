@@ -1,4 +1,5 @@
-from django.db.models import Q
+from django.db.models import Count, Q
+from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -33,6 +34,26 @@ _COMMUNITY_LIST_PARAMS = [
 ]
 
 
+def _upcoming_events_annotation_filter():
+    today = timezone.localdate()
+    return Q(
+        threads__related_event__status="upcoming",
+    ) & (
+        Q(threads__related_event__end_date__isnull=False, threads__related_event__end_date__gte=today)
+        | Q(threads__related_event__end_date__isnull=True, threads__related_event__event_date__gte=today)
+    )
+
+
+def community_queryset_with_stats():
+    return Community.objects.select_related("creator").annotate(
+        upcoming_events_count=Count(
+            "threads__related_event",
+            filter=_upcoming_events_annotation_filter(),
+            distinct=True,
+        ),
+    )
+
+
 def community_dict(c, request_user, detail=False):
     creator = c.creator
     is_member = False
@@ -50,6 +71,7 @@ def community_dict(c, request_user, detail=False):
         "cover_image": c.cover_image,
         "logo": c.logo,
         "member_count": c.member_count,
+        "upcoming_events_count": int(getattr(c, "upcoming_events_count", 0) or 0),
         "is_verified": c.is_verified,
         "creator": mini_user_creator(creator),
         "is_member": is_member,
@@ -145,7 +167,7 @@ class CommunityListCreateView(APIView):
     def get(self, request):
         limit = clamp_limit(request.query_params.get("limit"), 20)
         offset = clamp_offset(request.query_params.get("offset"))
-        qs = Community.objects.select_related("creator").all()
+        qs = community_queryset_with_stats()
         category = request.query_params.get("category")
         search = request.query_params.get("search")
         verified = request.query_params.get("verified")
@@ -199,7 +221,7 @@ class CommunityDetailView(APIView):
 
     def get(self, request, id):
         try:
-            c = Community.objects.select_related("creator").get(pk=id)
+            c = community_queryset_with_stats().get(pk=id)
         except Community.DoesNotExist:
             return err("NOT_FOUND", "Community not found", status.HTTP_404_NOT_FOUND)
         user = request.user if request.user.is_authenticated else None

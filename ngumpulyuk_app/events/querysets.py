@@ -22,3 +22,8 @@ def event_has_passed_q(*, today=None) -> Q:
 def filter_scheduled_upcoming(qs, *, today=None):
     """status upcoming + tanggal masih aktif (belum lewat)."""
     return qs.filter(status="upcoming").filter(event_still_active_q(today=today))
+
+
+def filter_scheduled_past(qs, *, today=None):
+    """Event yang tanggalnya sudah lewat (termasuk status upcoming yang belum di-update)."""
+    return qs.filter(event_has_passed_q(today=today))

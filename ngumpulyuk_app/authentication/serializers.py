@@ -59,10 +59,10 @@ class LoginSerializer(serializers.ModelSerializer):
         request=self.context.get('request')
         user=authenticate(request, email=email, password=password)
         if not user:
-            raise AuthenticationFailed('Invalid credentials')
+            raise AuthenticationFailed('Email atau kata sandi salah.')
     
         if not user.is_verified:
-            raise AuthenticationFailed('Email is not verified')
+            raise AuthenticationFailed('Email belum diverifikasi. Cek kotak masuk atau kirim ulang kode OTP.')
     
         user_tokens=user.tokens()
         
@@ -117,14 +117,14 @@ class SetNewPasswordSerializer(serializers.Serializer):
             user_id=force_str(urlsafe_base64_decode(uidb64))
             user=User.objects.get(id=user_id)
             if not PasswordResetTokenGenerator().check_token(user, token):
-                raise AuthenticationFailed("reset link is invalid or has expired", 401)
+                raise AuthenticationFailed("Link reset kata sandi tidak valid atau sudah kedaluwarsa.", 401)
             if password != confirm_password:
-                raise AuthenticationFailed("passwords do not match")
+                raise AuthenticationFailed("Konfirmasi kata sandi tidak cocok.")
             user.set_password(password)
             user.save()
             return user
         except Exception as e:
-            return AuthenticationFailed("link is invalid or has expired")
+            return AuthenticationFailed("Link tidak valid atau sudah kedaluwarsa.")
         
 class LogoutUserSerializer(serializers.Serializer):
     refresh_token=serializers.CharField()

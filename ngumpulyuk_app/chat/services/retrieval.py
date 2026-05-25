@@ -21,6 +21,13 @@ def _first_non_empty(*values):
     return None
 
 
+def _user_preferred_location(user) -> str:
+    try:
+        return (user.preferences_row.preferred_location or "").strip()
+    except UserPreferences.DoesNotExist:
+        return ""
+
+
 def _community_brief(c: Community, user):
     is_member = False
     if user and getattr(user, "is_authenticated", False):
@@ -54,7 +61,14 @@ def fetch_event_cards(user, limit: int = 5):
     return cards
 
 
-def fetch_event_cards_by_query(user, message_lower: str, limit: int = 5):
+def fetch_event_cards_by_query(
+    user,
+    message_lower: str,
+    limit: int = 5,
+    *,
+    prefer_nearby: bool = False,
+    prefer_weekend: bool = False,
+):
     """
     Fallback retrieval when personalized recommendation has no candidate.
     """
@@ -62,15 +76,42 @@ def fetch_event_cards_by_query(user, message_lower: str, limit: int = 5):
     base_qs = filter_scheduled_upcoming(Event.objects.all(), today=now_date)
     qs = base_qs.exclude(creator=user)
 
-    week_keys = ("minggu ini", "pekan ini", "week ini")
-    if any(k in message_lower for k in week_keys):
+    week_keys = ("minggu ini", "pekan ini", "week ini", "weekend", "week end", "sabtu", "minggu")
+    if prefer_weekend or any(k in message_lower for k in week_keys):
         qs = qs.filter(event_date__lte=now_date + timedelta(days=7))
+
+    pref_loc = _user_preferred_location(user)
+    nearby_keys = ("deket", "dekat", "sekitar", "terdekat", "lokasiku", "lokasi ku", "dekat aku", "deket aku")
+    if prefer_nearby or any(k in message_lower for k in nearby_keys):
+        if pref_loc:
+            qs = qs.filter(
+                Q(location_area__icontains=pref_loc)
+                | Q(location_address__icontains=pref_loc)
+                | Q(title__icontains=pref_loc)
+            )
 
     category_aliases = {
         "olahraga": ["olahraga", "sport", "sports", "futsal", "badminton", "basket", "lari", "jogging", "yoga", "gym"],
+        "boardgame": ["board game", "boardgame", "board games", "tabletop", "kotak", "dnd"],
         "gaming": ["gaming", "game", "esport", "e-sport", "mobile legends", "mlbb"],
         "teknologi": ["teknologi", "tech", "coding", "programming", "developer", "ai"],
         "musik": ["musik", "music", "band", "konser", "gig"],
+        "kreatif": [
+            "kreatif",
+            "creative",
+            "seni",
+            "art",
+            "workshop",
+            "lukis",
+            "fotografi",
+            "craft",
+            "diy",
+            "desain",
+            "design",
+            "tema",
+            "temanya",
+            "vibe",
+        ],
     }
 
     q = Q()
@@ -118,17 +159,85 @@ def fetch_event_cards_by_query(user, message_lower: str, limit: int = 5):
     return cards
 
 
+def _dedupe_event_cards(cards: list) -> list:
+    seen: set[str] = set()
+    out: list = []
+    for card in cards:
+        eid = str(card.get("payload", {}).get("id", "")).strip()
+        if not eid or eid in seen:
+            continue
+        seen.add(eid)
+        out.append(card)
+    return out
+
+
+def fetch_event_cards_for_message(
+    user,
+    message_lower: str,
+    limit: int = 5,
+    *,
+    prefer_nearby: bool = False,
+    prefer_weekend: bool = False,
+):
+    """
+    Prioritas: cocokkan kata kunci pertanyaan ke DB, lalu isi dengan rekomendasi personal.
+    """
+    merged: list = []
+    merged.extend(
+        fetch_event_cards_by_query(
+            user,
+            message_lower,
+            limit,
+            prefer_nearby=prefer_nearby,
+            prefer_weekend=prefer_weekend,
+        )
+    )
+    if len(merged) < limit:
+        for card in fetch_event_cards(user, limit):
+            merged.append(card)
+            if len(merged) >= limit:
+                break
+    return _dedupe_event_cards(merged)[:limit]
+
+
 def fetch_community_cards(user, message_lower: str, limit: int = 5):
     qs = Community.objects.select_related("creator").all()
-    # filter ringan dari teks (tanpa ML)
-    tokens = [t for t in message_lower.replace(",", " ").split() if len(t) > 2]
-    if tokens:
-        q = Q()
-        for t in tokens[:4]:
-            q |= Q(name__icontains=t) | Q(description__icontains=t) | Q(category__icontains=t)
-        filtered = qs.filter(q).order_by("-member_count", "-created_at")
-        if filtered.exists():
-            qs = filtered
+    theme_aliases = [
+        "kreatif",
+        "creative",
+        "seni",
+        "art",
+        "workshop",
+        "lukis",
+        "fotografi",
+        "craft",
+        "desain",
+        "design",
+        "tema",
+        "temanya",
+        "vibe",
+    ]
+    if any(a in message_lower for a in theme_aliases):
+        q_theme = Q()
+        for a in theme_aliases:
+            q_theme |= Q(category__icontains=a) | Q(name__icontains=a) | Q(description__icontains=a)
+        filtered_theme = qs.filter(q_theme).order_by("-member_count", "-created_at")
+        if filtered_theme.exists():
+            qs = filtered_theme
+
+    active_keys = ("aktif", "rame", "ramai", "lagi rame", "yang lagi")
+    if any(k in message_lower for k in active_keys):
+        qs = qs.order_by("-member_count", "-created_at")
+    else:
+        # filter ringan dari teks (tanpa ML)
+        tokens = [t for t in message_lower.replace(",", " ").split() if len(t) > 2]
+        if tokens:
+            q = Q()
+            for t in tokens[:4]:
+                q |= Q(name__icontains=t) | Q(description__icontains=t) | Q(category__icontains=t)
+            filtered = qs.filter(q).order_by("-member_count", "-created_at")
+            if filtered.exists():
+                qs = filtered
     rows = list(qs.order_by("-member_count", "-created_at")[:limit])
     cards = []
     for c in rows:
@@ -143,7 +252,30 @@ def fetch_community_cards(user, message_lower: str, limit: int = 5):
     return cards
 
 
-def fetch_area_cards(user, limit: int = 8):
+def fetch_community_cards_for_message(user, message_lower: str, limit: int = 5):
+    """
+    Prioritas: filter dari kata kunci pertanyaan, fallback komunitas populer di platform.
+    """
+    cards = fetch_community_cards(user, message_lower, limit)
+    if cards:
+        return cards
+    rows = list(
+        Community.objects.select_related("creator").order_by("-member_count", "-created_at")[:limit]
+    )
+    out = []
+    for c in rows:
+        payload = _community_brief(c, user)
+        out.append(
+            {
+                "type": "community",
+                "image_url": _first_non_empty(payload.get("cover_image"), payload.get("logo")),
+                "payload": payload,
+            }
+        )
+    return out
+
+
+def fetch_area_cards(user, limit: int = 8, *, prefer_nearby: bool = False):
     """
     'Tempat' = area/kota dari event upcoming (bukan POI pihak ketiga) — jujur, tanpa halusinasi nama venue baru.
     """
@@ -155,11 +287,9 @@ def fetch_area_cards(user, limit: int = 8):
     )
     uniq = []
     seen = set()
-    pref = None
-    try:
-        pref = (user.preferences_row.preferred_location or "").strip().lower()
-    except UserPreferences.DoesNotExist:
-        pass
+    pref = _user_preferred_location(user).lower()
+    if prefer_nearby and pref:
+        uniq = [a for a in uniq if pref in a.lower()] or uniq
     for a in areas:
         key = (a or "").strip().lower()
         if not key or key in seen:

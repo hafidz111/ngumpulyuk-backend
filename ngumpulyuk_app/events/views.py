@@ -13,7 +13,7 @@ from ngumpulyuk_app.common.openapi_params import path_uuid, q_int, q_str
 from ngumpulyuk_app.common.openapi_responses import R200, R201
 from ngumpulyuk_app.common.presenters import clamp_limit, clamp_offset, pagination_meta
 from ngumpulyuk_app.events.models import Event, EventParticipant, EventTag
-from ngumpulyuk_app.events.querysets import filter_scheduled_upcoming
+from ngumpulyuk_app.events.querysets import filter_scheduled_past, filter_scheduled_upcoming
 from ngumpulyuk_app.events.serializers import EventWriteSerializer, event_detail, event_list_item
 from ngumpulyuk_app.notifications.notify import (
     notify_event_full,
@@ -29,7 +29,7 @@ EVENTS_TAG = ["Events"]
 _EVENT_LIST_PARAMS = [
     q_str("category", "Filter kategori"),
     q_str("location", "Filter area lokasi (mencocokkan location_area)"),
-    q_str("status", "upcoming | ongoing | completed | cancelled"),
+    q_str("status", "upcoming | past | ongoing | completed | cancelled"),
     q_str("search", "Cari di judul / deskripsi"),
     q_str("date_from", "Tanggal mulai filter (YYYY-MM-DD)"),
     q_str("date_to", "Tanggal akhir filter (YYYY-MM-DD)"),
@@ -77,6 +77,8 @@ class EventListCreateView(APIView):
         if st:
             if st == "upcoming":
                 qs = filter_scheduled_upcoming(qs)
+            elif st == "past":
+                qs = filter_scheduled_past(qs)
             else:
                 qs = qs.filter(status=st)
         if search:

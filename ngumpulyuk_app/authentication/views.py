@@ -85,7 +85,7 @@ class VerifyUserEmail(GenericAPIView):
                 return ok(message="Account email verified successfully")
             return err("CONFLICT", "Email already verified", status.HTTP_409_CONFLICT)
         except OneTimePassword.DoesNotExist:
-            return err("NOT_FOUND", "Passcode not provided", status.HTTP_404_NOT_FOUND)
+            return err("NOT_FOUND", "Kode OTP tidak ditemukan atau sudah kedaluwarsa.", status.HTTP_404_NOT_FOUND)
 
 
 @extend_schema_view(
@@ -107,11 +107,11 @@ class ResendVerificationView(GenericAPIView):
         try:
             user = User.objects.get(email=email)
         except User.DoesNotExist:
-            return err("NOT_FOUND", "User not found", status.HTTP_404_NOT_FOUND)
+            return err("NOT_FOUND", "Akun tidak ditemukan.", status.HTTP_404_NOT_FOUND)
         if user.is_verified:
             return err(
                 "CONFLICT",
-                "Email already verified",
+                "Email sudah terverifikasi.",
                 status.HTTP_409_CONFLICT,
             )
         send_code_to_user(email)
@@ -183,7 +183,7 @@ class PasswordResetConfirm(GenericAPIView):
             user_id = smart_str(urlsafe_base64_decode(uidb64))
             user = User.objects.get(id=user_id)
             if not PasswordResetTokenGenerator().check_token(user, token):
-                return err("UNAUTHORIZED", "token is invalid or has expired", status.HTTP_401_UNAUTHORIZED)
+                return err("UNAUTHORIZED", "Sesi tidak valid atau sudah berakhir. Silakan masuk lagi.", status.HTTP_401_UNAUTHORIZED)
             return ok(
                 {"uidb64": uidb64, "token": token},
                 message="credentials is valid",
