@@ -79,3 +79,22 @@ class RecommendationFlowTests(TestCase):
         self.assertEqual(r.status_code, status.HTTP_200_OK)
         self.assertTrue(r.data["success"])
         self.assertGreaterEqual(len(r.data["data"]["recommendations"]), 1)
+
+    def test_recommendations_exclude_past_dates_with_stale_upcoming_status(self):
+        Event.objects.create(
+            creator=self.creator,
+            title="Old Meetup",
+            description="past",
+            category="Teknologi",
+            event_date=date.today() - timedelta(days=10),
+            event_time=time(18, 30),
+            location_area="Jakarta Selatan",
+            location_address="Somewhere",
+            max_participants=50,
+            status="upcoming",
+        )
+        r = self.client.get("/api/v1/recommendations/events/?limit=10")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        ids = {item["event"]["id"] for item in r.data["data"]["recommendations"]}
+        self.assertIn(str(self.event.id), ids)
+        self.assertEqual(len(ids), 1)

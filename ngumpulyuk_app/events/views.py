@@ -13,6 +13,7 @@ from ngumpulyuk_app.common.openapi_params import path_uuid, q_int, q_str
 from ngumpulyuk_app.common.openapi_responses import R200, R201
 from ngumpulyuk_app.common.presenters import clamp_limit, clamp_offset, pagination_meta
 from ngumpulyuk_app.events.models import Event, EventParticipant, EventTag
+from ngumpulyuk_app.events.querysets import filter_scheduled_upcoming
 from ngumpulyuk_app.events.serializers import EventWriteSerializer, event_detail, event_list_item
 from ngumpulyuk_app.notifications.notify import (
     notify_event_full,
@@ -74,7 +75,10 @@ class EventListCreateView(APIView):
         if location:
             qs = qs.filter(location_area__icontains=location)
         if st:
-            qs = qs.filter(status=st)
+            if st == "upcoming":
+                qs = filter_scheduled_upcoming(qs)
+            else:
+                qs = qs.filter(status=st)
         if search:
             qs = qs.filter(Q(title__icontains=search) | Q(description__icontains=search))
         if date_from:

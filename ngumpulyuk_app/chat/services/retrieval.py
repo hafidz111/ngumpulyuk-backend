@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from ngumpulyuk_app.communities.models import Community, CommunityMember
 from ngumpulyuk_app.events.models import Event
+from ngumpulyuk_app.events.querysets import filter_scheduled_upcoming
 from ngumpulyuk_app.events.serializers import event_list_item
 from ngumpulyuk_app.recommendations.views import build_recommendations
 from ngumpulyuk_app.users.models import UserPreferences
@@ -58,7 +59,7 @@ def fetch_event_cards_by_query(user, message_lower: str, limit: int = 5):
     Fallback retrieval when personalized recommendation has no candidate.
     """
     now_date = timezone.now().date()
-    base_qs = Event.objects.filter(status="upcoming", event_date__gte=now_date)
+    base_qs = filter_scheduled_upcoming(Event.objects.all(), today=now_date)
     qs = base_qs.exclude(creator=user)
 
     week_keys = ("minggu ini", "pekan ini", "week ini")
@@ -147,7 +148,7 @@ def fetch_area_cards(user, limit: int = 8):
     'Tempat' = area/kota dari event upcoming (bukan POI pihak ketiga) — jujur, tanpa halusinasi nama venue baru.
     """
     areas = (
-        Event.objects.filter(status="upcoming")
+        filter_scheduled_upcoming(Event.objects.all())
         .exclude(location_area="")
         .values_list("location_area", flat=True)
         .distinct()[:80]

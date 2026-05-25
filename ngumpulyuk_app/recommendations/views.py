@@ -12,6 +12,7 @@ from ngumpulyuk_app.common.openapi_params import q_int
 from ngumpulyuk_app.common.openapi_responses import R200
 from ngumpulyuk_app.common.presenters import clamp_limit
 from ngumpulyuk_app.events.models import Event
+from ngumpulyuk_app.events.querysets import filter_scheduled_upcoming
 from ngumpulyuk_app.events.serializers import event_list_item
 from ngumpulyuk_app.recommendations.models import AiRecommendation, RecommendationSignal
 from ngumpulyuk_app.recommendations.serializers import RecommendationSignalWriteSerializer
@@ -97,7 +98,7 @@ def build_recommendations(user, limit=10):
         .values_list("event_id", flat=True)
     )
     qs = (
-        Event.objects.filter(status="upcoming")
+        filter_scheduled_upcoming(Event.objects.all())
         .exclude(creator=user)
         .exclude(id__in=disliked_ids)
         .annotate(trending=Count("participants", filter=Q(participants__status="confirmed")))
