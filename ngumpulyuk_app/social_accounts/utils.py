@@ -4,7 +4,7 @@ from google.auth.transport import requests
 from google.oauth2 import id_token
 from rest_framework.exceptions import AuthenticationFailed
 
-from ngumpulyuk_app.authentication.models import User
+from ngumpulyuk_app.authentication.models import AUTH_PROVIDERS, OneTimePassword, User
 from ngumpulyuk_app.authentication.utils import record_user_login
 
 
@@ -45,14 +45,43 @@ def login_social_user(email, password, request=None):
     }
 
 
+def _link_unverified_email_user_to_google(user, full_name, request=None):
+    """
+    User daftar email+password tapi belum verifikasi OTP — Google membuktikan email,
+    jadi akun dilink ke Google dan langsung bisa masuk.
+    """
+    user.auth_provider = AUTH_PROVIDERS["google"]
+    user.is_verified = True
+    user.set_password(settings.SOCIAL_AUTH_PASSWORD)
+    if full_name and str(full_name).strip() and not str(user.full_name or "").strip():
+        user.full_name = str(full_name).strip()
+    user.save(
+        update_fields=["auth_provider", "is_verified", "password", "full_name", "updated_at"]
+    )
+    OneTimePassword.objects.filter(user=user).delete()
+    return login_social_user(
+        email=user.email,
+        password=settings.SOCIAL_AUTH_PASSWORD,
+        request=request,
+    )
+
+
 def register_social_user(provider, email, full_name, request=None):
     qs = User.objects.filter(email=email)
     if qs.exists():
-        if provider == qs[0].auth_provider:
+        existing = qs[0]
+        if provider == existing.auth_provider:
             return login_social_user(
                 email, settings.SOCIAL_AUTH_PASSWORD, request=request
             )
-        raise AuthenticationFailed(detail=f"please continue your login with {qs[0].auth_provider}")
+        if (
+            existing.auth_provider == AUTH_PROVIDERS["email"]
+            and not existing.is_verified
+        ):
+            return _link_unverified_email_user_to_google(
+                existing, full_name, request=request
+            )
+        raise AuthenticationFailed(detail=f"please continue your login with {existing.auth_provider}")
     local = email.split("@")[0]
     username = _unique_username(local)
     register_user = User.objects.create_user(

@@ -64,11 +64,32 @@ class GoogleSignInApiTests(TestCase):
         self.assertTrue(r.data["data"]["access_token"])
 
     @patch("ngumpulyuk_app.social_accounts.utils.Google.validate")
-    def test_google_sign_in_rejects_email_account(self, mock_validate):
+    def test_google_sign_in_links_unverified_email_account(self, mock_validate):
         User.objects.create_user(
             email="google.user@example.com",
             full_name="Email User",
             password="other-pass-123",
+            is_verified=False,
+        )
+        mock_validate.return_value = self.google_profile
+        r = self.client.post(
+            "/api/v1/auth/google/",
+            {"access_token": "fake-jwt-token"},
+            format="json",
+            HTTP_HOST="testserver",
+        )
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        user = User.objects.get(email="google.user@example.com")
+        self.assertEqual(user.auth_provider, "google")
+        self.assertTrue(user.is_verified)
+
+    @patch("ngumpulyuk_app.social_accounts.utils.Google.validate")
+    def test_google_sign_in_rejects_verified_email_account(self, mock_validate):
+        User.objects.create_user(
+            email="google.user@example.com",
+            full_name="Email User",
+            password="other-pass-123",
+            is_verified=True,
         )
         mock_validate.return_value = self.google_profile
         r = self.client.post(
