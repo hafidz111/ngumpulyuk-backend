@@ -2,6 +2,13 @@
 
 REST API untuk **NgumpulYuk**, platform ngumpul berbasis komunitas: event, circle (komunitas), obrolan thread, peta lokasi, notifikasi, dan asisten chat **Ngumpsky** (AI).
 
+## Deployment (production)
+
+|                               | URL                                                                                                    |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **Base URL API**              | `https://ngumpulyuk-backend.onrender.com/api/v1/`                                                      |
+| **Dokumentasi API (Swagger)** | [https://ngumpulyuk-backend.onrender.com/docs/api/](https://ngumpulyuk-backend.onrender.com/docs/api/) |
+
 ## Deskripsi
 
 Backend ini menyediakan autentikasi (email + Google OAuth), manajemen event & komunitas, diskusi (thread/komentar/like), rekomendasi, notifikasi, integrasi chat LLM (Gemini), serta data wilayah administrasi Indonesia (514 kabupaten/kota) untuk pemilihan lokasi event.
@@ -10,17 +17,17 @@ Arsitektur mengikuti domain Django apps (`authentication`, `events`, `communitie
 
 ## Fitur utama
 
-| Modul | Fitur |
-|--------|--------|
-| **Autentikasi** | Register, login JWT, verifikasi email, reset password, Google OAuth |
-| **Users** | Profil, onboarding (minat & preferensi), aktivitas |
-| **Events** | CRUD event, join/leave, kategori, filter & pagination, upload cover |
-| **Communities** | Circle, member, admin, join/leave |
-| **Discussions** | Thread global & per circle, komentar, like |
-| **Notifications** | In-app notifications, blast (staff) |
+| Modul               | Fitur                                                                 |
+| ------------------- | --------------------------------------------------------------------- |
+| **Autentikasi**     | Register, login JWT, verifikasi email, reset password, Google OAuth   |
+| **Users**           | Profil, onboarding (minat & preferensi), aktivitas                    |
+| **Events**          | CRUD event, join/leave, kategori, filter & pagination, upload cover   |
+| **Communities**     | Circle, member, admin, join/leave                                     |
+| **Discussions**     | Thread global & per circle, komentar, like                            |
+| **Notifications**   | In-app notifications, blast (staff)                                   |
 | **Chat (Ngumpsky)** | Percakapan AI, rekomendasi event/circle, monitoring & koreksi (admin) |
-| **Recommendations** | Sinyal & rekomendasi event |
-| **Common** | Landing public stats, daftar lokasi Indonesia, seed data sintetis |
+| **Recommendations** | Sinyal & rekomendasi event                                            |
+| **Common**          | Landing public stats, daftar lokasi Indonesia, seed data sintetis     |
 
 ## Teknologi
 
@@ -28,7 +35,7 @@ Arsitektur mengikuti domain Django apps (`authentication`, `events`, `communitie
 - **Django 4.2** + **Django REST Framework**
 - **PostgreSQL** (Supabase) via `DATABASE_URL`
 - **JWT** — `djangorestframework-simplejwt`
-- **API docs** — `drf-spectacular` (Swagger UI: `/docs/api/`)
+- **API docs** — `drf-spectacular` ([Swagger production](https://ngumpulyuk-backend.onrender.com/docs/api/))
 - **CORS** — `django-cors-headers`
 - **Email** — SMTP (Mailtrap untuk development)
 - **Google OAuth** — login sosial
@@ -89,8 +96,8 @@ DATABASE_URL=postgresql://USER:PASSWORD@HOST:6543/postgres
 
 FRONTEND_URL=http://localhost:5173
 
-EMAIL_HOST_USER=your-mailtrap-user
-EMAIL_HOST_PASSWORD=your-mailtrap-password
+EMAIL_HOST_USER=mailtrap-user
+EMAIL_HOST_PASSWORD=mailtrap-password
 
 GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-google-client-secret
@@ -108,7 +115,7 @@ python manage.py migrate
 ```bash
 python manage.py createsuperuser
 
-# Data demo (user *@seed.ngumpulyuk.local)
+# Data demo
 python manage.py seed_synthetic_data --clear
 ```
 
@@ -118,18 +125,33 @@ python manage.py seed_synthetic_data --clear
 python manage.py runserver
 ```
 
-API base: `http://127.0.0.1:8000/api/v1/`  
-Swagger: `http://127.0.0.1:8000/docs/api/`
+**Lokal**
+
+|              | URL                               |
+| ------------ | --------------------------------- |
+| Base URL API | `http://127.0.0.1:8000/api/v1/`   |
+| Swagger      | `http://127.0.0.1:8000/docs/api/` |
+
+## API lokasi (kabupaten/kota)
+
+Daftar **514 kabupaten/kota** di Indonesia (Kemendagri 2026 + koordinat).
+
+| Query    | Default | Keterangan                                        |
+| -------- | ------- | ------------------------------------------------- |
+| `search` | —       | Filter nama kab/kota, provinsi, atau kode wilayah |
+| `limit`  | `50`    | Maks hasil per request (1–514)                    |
 
 ## Endpoint berguna
 
-| Path | Keterangan |
-|------|------------|
-| `GET /api/v1/public/landing/` | Data landing (stats, spotlight) |
-| `GET /api/v1/locations/` | Kabupaten/kota Indonesia (`?search=`) |
-| `GET /api/v1/events/categories/` | Kategori event |
-| `POST /api/v1/auth/register/` | Registrasi |
-| `POST /api/v1/chat/` | Chat Ngumpsky |
+Path relatif terhadap base URL (`/api/v1/`). Coba langsung di [Swagger](https://ngumpulyuk-backend.onrender.com/docs/api/).
+
+| Path                      | Keterangan                                                               |
+| ------------------------- | ------------------------------------------------------------------------ |
+| `GET /public/landing/`    | Data landing (stats, spotlight)                                          |
+| `GET /locations/`         | Kabupaten/kota Indonesia — lihat [API lokasi](#api-lokasi-kabupatenkota) |
+| `GET /events/categories/` | Kategori event                                                           |
+| `POST /auth/register/`    | Registrasi                                                               |
+| `POST /chat/`             | Chat Ngumpsky                                                            |
 
 ## Struktur folder (ringkas)
 
