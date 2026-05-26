@@ -252,7 +252,29 @@ else:
     EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD')
 
 EMAIL_TIMEOUT = 10
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='info@ngumpulyuk.id')
+EMAIL_FROM_NAME = env('EMAIL_FROM_NAME', default='NgumpulYuk')
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {'class': 'logging.StreamHandler'},
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'ngumpulyuk_app.authentication': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
 
 GOOGLE_CLIENT_ID=env('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_SECRET=env('GOOGLE_CLIENT_SECRET')

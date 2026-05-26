@@ -10,7 +10,15 @@ services:
       python manage.py migrate &&
       python manage.py collectstatic --noinput
 
-    startCommand: gunicorn ngumpulyuk_project.wsgi:application --workers 2 --timeout 120 --graceful-timeout 30
+    startCommand: >-
+      gunicorn ngumpulyuk_project.wsgi:application
+      --workers 1
+      --worker-class gthread
+      --threads 4
+      --timeout 120
+      --graceful-timeout 30
+      --max-requests 500
+      --max-requests-jitter 50
 
     healthCheckPath: /health/
 

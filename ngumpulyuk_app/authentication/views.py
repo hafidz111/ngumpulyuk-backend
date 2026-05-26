@@ -28,13 +28,21 @@ from .serializers import (
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView as SimpleJwtTokenRefreshView
 
-from .utils import enqueue_send_code_to_user, record_user_login
+from .utils import OtpEmailDeliveryError, deliver_otp_to_user, record_user_login
 
 AUTH_TAG = ["Authentication"]
 
 
 class EmptySerializer(serializers.Serializer):
     """Placeholder untuk GenericAPIView yang tidak memakai body (Swagger)."""
+
+
+def _otp_send_error_response():
+    return err(
+        "EMAIL_DELIVERY_FAILED",
+        "Gagal mengirim email OTP. Periksa alamat email atau coba lagi dalam beberapa menit.",
+        status.HTTP_503_SERVICE_UNAVAILABLE,
+    )
 
 
 @extend_schema_view(
@@ -54,7 +62,10 @@ class RegisterUserView(GenericAPIView):
         if serializer.is_valid(raise_exception=True):
             serializer.save()
             user = serializer.data
-            enqueue_send_code_to_user(user["email"])
+            try:
+                deliver_otp_to_user(user["email"])
+            except OtpEmailDeliveryError:
+                return _otp_send_error_response()
             return ok(
                 user,
                 message="Daftar berhasil, silahkan login dengan email yang telah didaftarkan",
@@ -121,7 +132,10 @@ class ResendVerificationView(GenericAPIView):
                 "Email sudah terverifikasi.",
                 status.HTTP_409_CONFLICT,
             )
-        enqueue_send_code_to_user(email)
+        try:
+            deliver_otp_to_user(email)
+        except OtpEmailDeliveryError:
+            return _otp_send_error_response()
         return ok(message="Verification code sent")
 
 
