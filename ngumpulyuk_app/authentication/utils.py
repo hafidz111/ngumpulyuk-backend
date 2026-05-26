@@ -4,8 +4,7 @@ from email.utils import formataddr, parseaddr
 
 from django.conf import settings
 from django.contrib.auth.models import update_last_login
-from django.core.mail import EmailMessage, EmailMultiAlternatives
-
+from .email_delivery import EmailDeliveryError, send_html_email, send_simple_email
 from .models import OneTimePassword, User
 
 logger = logging.getLogger(__name__)
@@ -26,8 +25,8 @@ FONT_BODY = "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 FONT_DISPLAY = "'Plus Jakarta Sans', Inter, sans-serif"
 
 
-class OtpEmailDeliveryError(Exception):
-    """Gagal mengirim OTP lewat SMTP."""
+class OtpEmailDeliveryError(EmailDeliveryError):
+    """Gagal mengirim OTP."""
 
 
 def get_from_email():
@@ -220,14 +219,9 @@ def _otp_email_html(full_name, otp_code, recipient_email):
 
 def deliver_otp_to_user(email):
     """
-    Simpan OTP lalu kirim email secara sinkron (reliable di Gunicorn/Render).
-    Raises OtpEmailDeliveryError jika SMTP gagal.
+    Simpan OTP lalu kirim email (Resend API di production Render, SMTP di lokal).
+    Raises OtpEmailDeliveryError jika pengiriman gagal.
     """
-    if not (getattr(settings, "EMAIL_HOST_USER", None) or "").strip():
-        raise OtpEmailDeliveryError("EMAIL_HOST_USER tidak dikonfigurasi.")
-    if not (getattr(settings, "EMAIL_HOST_PASSWORD", None) or "").strip():
-        raise OtpEmailDeliveryError("EMAIL_HOST_PASSWORD tidak dikonfigurasi.")
-
     email_from = get_from_email()
     if not email_from:
         raise OtpEmailDeliveryError("DEFAULT_FROM_EMAIL tidak dikonfigurasi.")
@@ -235,30 +229,17 @@ def deliver_otp_to_user(email):
     otp_code, user = issue_otp_for_user(email)
     full_name = user.full_name or ""
 
-    message = EmailMultiAlternatives(
-        subject=OTP_EMAIL_SUBJECT,
-        body=_otp_email_plain(full_name, otp_code, email),
-        from_email=email_from,
-        to=[email],
-    )
-    message.attach_alternative(_otp_email_html(full_name, otp_code, email), "text/html")
-
     try:
-        sent = message.send(fail_silently=False)
-    except Exception as exc:
-        logger.exception(
-            "SMTP gagal kirim OTP from=%s to=%s: %s",
-            email_from,
-            email,
-            exc,
+        send_html_email(
+            from_email=email_from,
+            to_email=email,
+            subject=OTP_EMAIL_SUBJECT,
+            plain_body=_otp_email_plain(full_name, otp_code, email),
+            html_body=_otp_email_html(full_name, otp_code, email),
         )
+    except EmailDeliveryError as exc:
         raise OtpEmailDeliveryError(str(exc)) from exc
 
-    if sent == 0:
-        logger.error("SMTP returned 0 for OTP from=%s to=%s", email_from, email)
-        raise OtpEmailDeliveryError("SMTP tidak mengirim pesan (sent=0).")
-
-    logger.info("OTP terkirim from=%s to=%s", email_from, email)
     return otp_code
 
 
@@ -272,11 +253,14 @@ def enqueue_send_code_to_user(email):
 
 def send_normal_email(data):
     email_from = get_from_email()
-    email = EmailMessage(
-        subject=data["email_subject"],
-        body=data["email_body"],
-        from_email=email_from,
-        to=[data["to_email"]],
-    )
-    fail_silently = getattr(settings, "DJANGO_ENV", "") != "production"
-    email.send(fail_silently=fail_silently)
+    try:
+        send_simple_email(
+            from_email=email_from,
+            to_email=data["to_email"],
+            subject=data["email_subject"],
+            body=data["email_body"],
+        )
+    except EmailDeliveryError:
+        if getattr(settings, "DJANGO_ENV", "") == "production":
+            raise
+        logger.exception("Gagal kirim email (development)")

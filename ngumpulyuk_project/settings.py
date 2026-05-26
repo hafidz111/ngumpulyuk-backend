@@ -256,6 +256,9 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='info@ngumpulyuk.id')
 EMAIL_FROM_NAME = env('EMAIL_FROM_NAME', default='NgumpulYuk')
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
+# Production di Render: SMTP Gmail diblokir — pakai Resend (HTTPS).
+RESEND_API_KEY = env('RESEND_API_KEY', default=None)
+EMAIL_BACKEND_PROVIDER = env('EMAIL_BACKEND_PROVIDER', default='auto')
 
 LOGGING = {
     'version': 1,

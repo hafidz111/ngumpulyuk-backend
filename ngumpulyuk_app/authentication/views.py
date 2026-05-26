@@ -37,10 +37,15 @@ class EmptySerializer(serializers.Serializer):
     """Placeholder untuk GenericAPIView yang tidak memakai body (Swagger)."""
 
 
-def _otp_send_error_response():
+def _otp_send_error_response(exc=None):
+    default = (
+        "Gagal mengirim email OTP. Periksa alamat email atau coba lagi dalam beberapa menit."
+    )
+    detail = str(exc).strip() if exc else ""
+    message = detail if detail and len(detail) < 220 else default
     return err(
         "EMAIL_DELIVERY_FAILED",
-        "Gagal mengirim email OTP. Periksa alamat email atau coba lagi dalam beberapa menit.",
+        message,
         status.HTTP_503_SERVICE_UNAVAILABLE,
     )
 
@@ -64,8 +69,8 @@ class RegisterUserView(GenericAPIView):
             user = serializer.data
             try:
                 deliver_otp_to_user(user["email"])
-            except OtpEmailDeliveryError:
-                return _otp_send_error_response()
+            except OtpEmailDeliveryError as exc:
+                return _otp_send_error_response(exc)
             return ok(
                 user,
                 message="Daftar berhasil, silahkan login dengan email yang telah didaftarkan",
@@ -134,8 +139,8 @@ class ResendVerificationView(GenericAPIView):
             )
         try:
             deliver_otp_to_user(email)
-        except OtpEmailDeliveryError:
-            return _otp_send_error_response()
+        except OtpEmailDeliveryError as exc:
+            return _otp_send_error_response(exc)
         return ok(message="Verification code sent")
 
 
