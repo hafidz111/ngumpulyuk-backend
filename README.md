@@ -141,7 +141,7 @@ Daftar **514 kabupaten/kota** di Indonesia (Kemendagri 2026 + koordinat).
 | `search` | —       | Filter nama kab/kota, provinsi, atau kode wilayah |
 | `limit`  | `50`    | Maks hasil per request (1–514)                    |
 
-**Ambil data **
+**Ambil data**
 
 ```bash
 # Production — 50 kota pertama
