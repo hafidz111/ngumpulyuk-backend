@@ -1,10 +1,14 @@
+import logging
 import random
+import threading
 
 from django.conf import settings
 from django.contrib.auth.models import update_last_login
 from django.core.mail import EmailMessage
 
 from .models import OneTimePassword, User
+
+logger = logging.getLogger(__name__)
 
 
 def record_user_login(user, request=None):
@@ -47,6 +51,22 @@ def send_code_to_user(email):
     OneTimePassword.objects.create(user=user, code=otp_code)
     d_email=EmailMessage(subject=Subject, body=email_body, from_email=from_email, to=[email])
     d_email.send(fail_silently=True)
+
+
+def enqueue_send_code_to_user(email):
+    """
+    Kirim OTP di background agar POST register/resend tidak menunggu SMTP
+    (menghindari timeout 503 di Render saat Gmail lambat).
+    """
+
+    def _run():
+        try:
+            send_code_to_user(email)
+        except Exception:
+            logger.exception("Gagal mengirim OTP verifikasi ke %s", email)
+
+    threading.Thread(target=_run, daemon=True).start()
+
 
 def send_normal_email(data):
     email=EmailMessage(

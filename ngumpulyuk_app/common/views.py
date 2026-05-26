@@ -2,10 +2,25 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from ngumpulyuk_app.common.api_response import ok
 from ngumpulyuk_app.common.indonesia_locations import all_locations, search_locations
 from ngumpulyuk_app.common.openapi_params import q_str
 from ngumpulyuk_app.common.openapi_responses import R200
 from drf_spectacular.utils import extend_schema
+
+
+@extend_schema(
+    tags=["Public"],
+    summary="Ping API (status layanan)",
+    responses=R200,
+)
+class PublicPingView(APIView):
+    """Endpoint ringan untuk cek koneksi; hindari path /health/ yang sering diblokir ad blocker."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return ok({"status": "ok"})
 
 
 @extend_schema(

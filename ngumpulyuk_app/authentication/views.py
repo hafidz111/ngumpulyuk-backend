@@ -28,7 +28,7 @@ from .serializers import (
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView as SimpleJwtTokenRefreshView
 
-from .utils import record_user_login, send_code_to_user
+from .utils import enqueue_send_code_to_user, record_user_login
 
 AUTH_TAG = ["Authentication"]
 
@@ -54,7 +54,7 @@ class RegisterUserView(GenericAPIView):
         if serializer.is_valid(raise_exception=True):
             serializer.save()
             user = serializer.data
-            send_code_to_user(user["email"])
+            enqueue_send_code_to_user(user["email"])
             return ok(
                 user,
                 message="Daftar berhasil, silahkan login dengan email yang telah didaftarkan",
@@ -121,7 +121,7 @@ class ResendVerificationView(GenericAPIView):
                 "Email sudah terverifikasi.",
                 status.HTTP_409_CONFLICT,
             )
-        send_code_to_user(email)
+        enqueue_send_code_to_user(email)
         return ok(message="Verification code sent")
 
 
