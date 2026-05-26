@@ -141,6 +141,31 @@ Daftar **514 kabupaten/kota** di Indonesia (Kemendagri 2026 + koordinat).
 | `search` | —       | Filter nama kab/kota, provinsi, atau kode wilayah |
 | `limit`  | `50`    | Maks hasil per request (1–514)                    |
 
+**Ambil data **
+
+```bash
+# Production — 50 kota pertama
+curl "https://ngumpulyuk-backend.onrender.com/api/v1/locations/"
+
+# Cari nama
+curl "https://ngumpulyuk-backend.onrender.com/api/v1/locations/?search=bandung"
+curl "https://ngumpulyuk-backend.onrender.com/api/v1/locations/?search=jakarta&limit=20"
+
+# Semua 514 kab/kota
+curl "https://ngumpulyuk-backend.onrender.com/api/v1/locations/?limit=514"
+
+# Lokal
+curl "http://127.0.0.1:8000/api/v1/locations/?search=surabaya"
+```
+
+**Update data lokasi**
+
+Regenerasi file JSON dari sumber Kemendagri terbaru:
+
+```bash
+python scripts/generate_indonesia_locations.py
+```
+
 ## Endpoint berguna
 
 Path relatif terhadap base URL (`/api/v1/`). Coba langsung di [Swagger](https://ngumpulyuk-backend.onrender.com/docs/api/).
