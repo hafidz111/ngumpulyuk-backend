@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 TIME_BUCKET_LABELS_ID = {
     "morning": "pagi",
     "afternoon": "siang",
