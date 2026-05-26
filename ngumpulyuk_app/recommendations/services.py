@@ -133,23 +133,23 @@ def ml_event_score(event: Event, profile: dict) -> tuple[Decimal, list[str]]:
     cat_score = cat_map.get(event.category or "", Decimal("0"))
     score += max(min(cat_score, Decimal("18")), Decimal("-18"))
     if cat_score > 0:
-        reasons.append("ML: category affinity")
+        reasons.append("Cocok dengan kategori yang sering kamu ikuti")
     elif cat_score < 0:
-        reasons.append("ML: category penalty")
+        reasons.append("Kurang cocok dengan pola aktivitasmu")
 
     tb = _time_of_day_bucket(event.event_time)
     if tb:
         tscore = time_map.get(tb, Decimal("0"))
         score += max(min(tscore, Decimal("8")), Decimal("-8"))
         if tscore > 0:
-            reasons.append("ML: preferred time pattern")
+            reasons.append("Cocok dengan pola waktu aktivitasmu")
 
     if event.location_area:
         key = event.location_area.strip().lower()
         lscore = loc_map.get(key, Decimal("0"))
         score += max(min(lscore, Decimal("8")), Decimal("-8"))
         if lscore > 0:
-            reasons.append("ML: location affinity")
+            reasons.append("Cocok dengan lokasi yang sering kamu kunjungi")
 
     normalized = score / (Decimal("1") + (total_abs / Decimal("50")))
     normalized = max(min(normalized, Decimal("22")), Decimal("-22"))

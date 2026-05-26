@@ -16,6 +16,7 @@ from ngumpulyuk_app.events.querysets import filter_scheduled_upcoming
 from ngumpulyuk_app.events.serializers import event_list_item
 from ngumpulyuk_app.recommendations.models import AiRecommendation, RecommendationSignal
 from ngumpulyuk_app.recommendations.serializers import RecommendationSignalWriteSerializer
+from ngumpulyuk_app.recommendations.reason_copy import time_bucket_label_id
 from ngumpulyuk_app.recommendations.services import (
     SIGNAL_WEIGHTS,
     build_ml_profile,
@@ -57,9 +58,9 @@ def _behavior_score(user, ev):
         score = weight * decay
         total += score
     if total > 0:
-        reasons.append("Based on your interactions")
+        reasons.append("Berdasarkan interaksi kamu")
     elif total < 0:
-        reasons.append("Reduced due to negative interactions")
+        reasons.append("Diturunkan karena interaksi negatif")
     return total, reasons
 
 
@@ -68,13 +69,14 @@ def _user_preference_bonus(user, ev, interests, pref_time, pref_loc):
     reasons = []
     if ev.category in interests:
         score += Decimal("18")
-        reasons.append(f"Matches your interest in {ev.category}")
+        reasons.append(f"Sesuai minat kamu: {ev.category}")
     if pref_time and _time_of_day_bucket(ev.event_time) == pref_time:
         score += Decimal("8")
-        reasons.append(f"Matches your preferred time ({pref_time})")
+        time_label = time_bucket_label_id(pref_time) or pref_time
+        reasons.append(f"Sesuai waktu favorit ({time_label})")
     if pref_loc and pref_loc.lower() in (ev.location_area or "").lower():
         score += Decimal("10")
-        reasons.append("Near your preferred location")
+        reasons.append("Dekat lokasi pilihan kamu")
     return score, reasons
 
 
@@ -120,11 +122,11 @@ def build_recommendations(user, limit=10):
         reason_parts.extend(behavior_reason)
         reason_parts.extend(ml_reasons)
         if popularity > 0:
-            reason_parts.append("Popular event")
+            reason_parts.append("Event populer")
         if recency > 0:
-            reason_parts.append("Recently added")
+            reason_parts.append("Baru ditambahkan")
         score = max(Decimal("0"), min(score, Decimal("100")))
-        reason = "; ".join(reason_parts) if reason_parts else "Popular upcoming event"
+        reason = "; ".join(reason_parts) if reason_parts else "Event mendatang yang populer"
         rec, _ = AiRecommendation.objects.update_or_create(
             user=user,
             event=ev,
