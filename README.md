@@ -77,7 +77,7 @@ pip install -r requirements.txt
 
 ### 2. Environment variables
 
-Buat file **`.env`** di root backend (file ini **tidak** di-commit). Salin variabel berikut dan isi nilainya:
+Buat file **`.env`** di root backend. Salin variabel berikut dan isi nilainya:
 
 ```env
 SECRET_KEY=generate-a-strong-secret-key
@@ -96,8 +96,6 @@ GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 SOCIAL_AUTH_PASSWORD=random-string-for-social-users
 ```
-
-> **Catatan:** Template `.env.example` sengaja tidak ada di repository Git. Jika pernah ter-push, hapus dari remote dengan langkah di bawah.
 
 ### 3. Migrasi database
 
@@ -122,34 +120,6 @@ python manage.py runserver
 
 API base: `http://127.0.0.1:8000/api/v1/`  
 Swagger: `http://127.0.0.1:8000/docs/api/`
-
-## Menghapus `.env.example` dari GitHub
-
-Jika `.env.example` (atau `.env` berisi rahasia) pernah ter-push:
-
-```bash
-# Hentikan pelacakan file (tetap ada di laptop)
-git rm --cached .env.example
-
-# Pastikan .gitignore memuat .env.example
-git add .gitignore
-git commit -m "chore: stop tracking env example file"
-git push origin main
-```
-
-File hilang dari GitHub pada commit berikutnya, tetapi **masih ada di history commit lama**.
-
-### Membersihkan history (jika pernah commit `.env` berisi password asli)
-
-```bash
-# Ganti path jika perlu; backup repo dulu
-git filter-repo --path .env.example --invert-paths
-# atau BFG Repo-Cleaner untuk .env
-
-git push origin main --force
-```
-
-Setelah force-push: **rotate semua secret** (DB password, `SECRET_KEY`, OAuth, Gemini, dll.).
 
 ## Endpoint berguna
 
@@ -180,7 +150,3 @@ ngumpulyuk-backend/
 └── scripts/
     └── generate_indonesia_locations.py
 ```
-
-## Lisensi
-
-Proyek privat — sesuaikan dengan kebijakan tim Anda.
