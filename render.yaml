@@ -50,6 +50,9 @@ services:
       - key: EMAIL_FROM_NAME
         sync: false
 
+      - key: RESEND_API_KEY
+        sync: false
+
       - key: FRONTEND_URL
         sync: false
 
