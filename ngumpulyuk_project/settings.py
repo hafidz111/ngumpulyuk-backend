@@ -240,10 +240,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Email
 if DJANGO_ENV == 'production':
     EMAIL_HOST = 'smtp.gmail.com'
-    EMAIL_PORT = 587
+    EMAIL_PORT = 2525
     EMAIL_USE_TLS = True
-    EMAIL_HOST_USER = env('EMAIL_HOST_USER')      # Alamat Gmail Anda, misal: info@ngumpulyuk.id
-    EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD')  # Gmail App Password (16 karakter)
+    EMAIL_HOST_USER = env('EMAIL_HOST_USER')      
+    EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD')
 else:
     EMAIL_HOST = 'sandbox.smtp.mailtrap.io'
     EMAIL_PORT = 2525
@@ -256,9 +256,6 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='info@ngumpulyuk.id')
 EMAIL_FROM_NAME = env('EMAIL_FROM_NAME', default='NgumpulYuk')
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
-# Production di Render: SMTP Gmail diblokir — pakai Resend (HTTPS).
-RESEND_API_KEY = env('RESEND_API_KEY', default=None)
-EMAIL_BACKEND_PROVIDER = env('EMAIL_BACKEND_PROVIDER', default='auto')
 
 LOGGING = {
     'version': 1,

@@ -219,7 +219,7 @@ def _otp_email_html(full_name, otp_code, recipient_email):
 
 def deliver_otp_to_user(email):
     """
-    Simpan OTP lalu kirim email (Resend API di production Render, SMTP di lokal).
+    Simpan OTP lalu kirim email via SMTP (Gmail di production, Mailtrap di development).
     Raises OtpEmailDeliveryError jika pengiriman gagal.
     """
     email_from = get_from_email()
