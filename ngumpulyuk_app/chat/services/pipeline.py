@@ -22,6 +22,20 @@ def _sha256_hex(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
+def _faq_reply_text(hit: dict) -> str:
+    answer = (hit.get("answer") or "").strip()
+    if answer:
+        return answer
+    return (hit.get("title") or "").strip()
+
+
+def _join_reply_parts(parts: list[str], *, max_parts: int = 2) -> str:
+    cleaned = [p.strip() for p in parts if p and p.strip()]
+    if not cleaned:
+        return ""
+    return " ".join(cleaned[:max_parts]).strip()
+
+
 def _rule_reply(
     *,
     intent: str,
@@ -33,84 +47,86 @@ def _rule_reply(
     has_areas: bool,
 ) -> str:
     if intent == "empty":
-        return "Kosong nih pesannya 😭 coba ketik apa yang mau ditanya."
+        return "Kosong nih pesannya. Coba ketik mau cari event, circle, atau tanya cara pakai app."
 
     if intent == "greeting":
         opts = [
-            "Halo! 👋 Siap bantu cari event atau komunitas. Mau mulai dari yang mana?",
-            "Hai! ✨ Lagi nyari kegiatan atau circle baru? Tanya aja — nanti aku kasih card yang relevan.",
+            "Hai! Gue Ngumpsky. Mau cari event, circle, atau tanya cara pakai app? Ketik aja, nanti gue kasih jawaban plus card kalau ada datanya.",
+            "Halo! Siap bantu dari data NgumpulYuk. Tanya event, komunitas, atau yang deket lokasi kamu.",
         ]
         return random.choice(opts)
 
-    parts = []
+    parts: list[str] = []
     if faq_hits and intent in ("faq", "general"):
-        top = faq_hits[0]
         skip_generic_faq = intent == "general" and (
             has_events or has_communities or has_areas
         )
         if not skip_generic_faq:
-            parts.append(f"{top['title']}: {top['answer']}")
+            parts.append(_faq_reply_text(faq_hits[0]))
 
     if intent == "faq" and not parts:
-        parts.append("Coba tanya lebih spesifik, misalnya cara daftar, bikin event, atau privasi akun.")
+        parts.append(
+            "Coba lebih spesifik ya, misalnya cara daftar, bikin event, join circle, atau privasi akun."
+        )
 
     if intent == "place_reco":
         if has_events and has_areas:
             parts.append(
-                "Ini area & event yang relevan sama lokasi kamu di platform — bukan review venue luar ya, "
-                "biar datanya akurat."
+                "Ini event dan area dari data NgumpulYuk yang relevan sama lokasi kamu. Cek card-nya ya."
             )
         elif has_events:
-            parts.append("Ini event di area yang mirip preferensi lokasi kamu — cek card-nya.")
+            parts.append("Ini event yang area-nya mirip preferensi kamu. Lihat card di bawah.")
         elif has_areas:
-            parts.append("Ini area yang sering dipakai event aktif — pilih area dulu, terus cari event di situ.")
+            parts.append(
+                "Ini area yang sering dipakai event aktif. Pilih area dulu, terus cari event di situ."
+            )
         else:
             parts.append(
-                "Belum ada event/area yang ke-detect deket kamu. Coba update lokasi di profil atau buka tab Peta."
+                "Belum nemu event atau area yang pas. Coba update lokasi di profil atau buka tab Peta."
             )
 
     if intent == "event_reco":
         if plan.prefer_weekend and has_events:
-            parts.append("Ini rekomendasi event buat weekend ini — scroll card di bawah ya.")
+            parts.append("Ini event yang cocok buat weekend ini. Scroll card di bawah.")
         elif any(k in message_lower for k in ("olahraga", "futsal", "badminton", "sport")) and has_events:
-            parts.append("Ini opsi olahraga yang lagi upcoming — lihat card-nya.")
-        elif any(k in message_lower for k in ("kreatif", "tema", "seni", "workshop")) and has_events and has_communities:
-            parts.append("Yang vibes-nya kreatif: ada event & komunitas di bawah — pilih yang paling cocok.")
+            parts.append("Ini opsi olahraga yang masih upcoming. Cek card-nya.")
+        elif any(k in message_lower for k in ("kreatif", "tema", "seni", "workshop")) and has_events:
+            parts.append("Ini event yang vibes-nya kreatif. Pilih lewat card di bawah.")
         elif any(k in message_lower for k in ("kreatif", "tema", "seni")) and has_communities and not has_events:
-            parts.append("Belum ada event kreatif yang ke-match, tapi komunitasnya ada di card bawah.")
+            parts.append("Event kreatif belum ketemu, tapi ada circle terkait di card bawah.")
         elif has_events:
-            parts.append("Ini event yang relevan sama pertanyaan kamu — cek card di bawah.")
+            parts.append("Ini event yang relevan sama pertanyaan kamu. Cek card di bawah.")
         elif has_communities:
-            parts.append("Belum ada event pas, tapi ada komunitas terkait — lihat card komunitasnya.")
+            parts.append("Event pas belum ada, tapi ada circle terkait di card komunitas.")
         else:
             parts.append(
-                "Belum ada event yang cocok buat kamu sekarang. Coba tab Explore atau update minat di profil."
+                "Belum ada event yang cocok sekarang. Coba tab Explore atau perjelas kata kuncinya."
             )
 
     if intent == "community_reco":
         if any(k in message_lower for k in ("aktif", "rame", "ramai")) and has_communities:
-            parts.append("Ini komunitas yang lagi aktif di platform — gabung lewat card-nya.")
+            parts.append("Ini circle yang lagi aktif. Gabung lewat card di bawah.")
         elif has_communities:
-            parts.append("Ini komunitas yang cocok dari kata kunci kamu — lihat card di bawah.")
+            parts.append("Ini komunitas yang cocok dari kata kunci kamu. Lihat card di bawah.")
         else:
-            parts.append("Belum ada komunitas yang ke-match. Coba tab Community atau ubah kata kunci.")
+            parts.append("Belum ada circle yang ke-match. Coba tab Komunitas atau ubah kata kuncinya.")
 
     if intent == "general":
         if has_events and has_communities:
-            parts.append("Ini beberapa event & komunitas populer yang bisa kamu cek dulu.")
+            parts.append("Ini beberapa event dan circle yang bisa kamu cek dulu lewat card.")
         elif has_events:
-            parts.append("Ini beberapa event yang bisa kamu lihat — pilih lewat card.")
+            parts.append("Ini beberapa event yang bisa kamu lihat lewat card di bawah.")
         elif has_communities:
-            parts.append("Ini beberapa komunitas yang lagi ada di platform.")
+            parts.append("Ini beberapa komunitas yang ada di platform. Cek card-nya.")
         elif faq_hits:
-            parts.append("Kalau mau rekomendasi, tanya misalnya 'event minggu ini' atau 'komunitas yang aktif'.")
+            parts.append("Kalau mau rekomendasi, coba tanya event minggu ini atau circle yang aktif.")
         else:
             parts.append(
-                "Belum nemu data yang pas. Coba tanya event (mis. olahraga minggu ini), komunitas, "
-                "atau 'ada yang deket aku?'."
+                "Belum nemu data yang pas. Coba tanya event, komunitas, atau ada yang deket lokasi kamu."
             )
 
-    return " ".join(parts).strip() or "Coba tanya lebih spesifik ya — aku bantu dari info di NgumpulYuk."
+    joined = _join_reply_parts(parts, max_parts=2)
+    return joined or "Coba tanya lebih spesifik ya. Gue jawab dari data event dan circle di NgumpulYuk."
 
 
 def run_chat(*, user, message: str, session_key: str = "") -> dict:

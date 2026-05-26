@@ -1,3 +1,7 @@
+from datetime import timedelta
+
+from django.contrib.auth import get_user_model
+from django.utils import timezone
 from django.utils.encoding import DjangoUnicodeDecodeError, smart_str
 from django.utils.http import urlsafe_base64_decode
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -21,7 +25,10 @@ from .serializers import (
     ResendVerificationSerializer,
     VerifyEmailSerializer,
 )
-from .utils import send_code_to_user
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenRefreshView as SimpleJwtTokenRefreshView
+
+from .utils import record_user_login, send_code_to_user
 
 AUTH_TAG = ["Authentication"]
 
@@ -208,6 +215,42 @@ class SetNewPassword(GenericAPIView):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         return ok(message="password reset is succesful")
+
+
+@extend_schema_view(
+    post=extend_schema(
+        tags=AUTH_TAG,
+        summary="Refresh access token",
+        description=(
+            "Gunakan refresh token yang valid untuk mendapatkan access token baru. "
+            "Kirimkan refresh token untuk memperbarui sesi tanpa login ulang."
+        ),
+    ),
+)
+class TokenRefreshView(SimpleJwtTokenRefreshView):
+    """
+    Refresh access token; perbarui last_login paling lambat setiap 12 jam
+    (user yang hanya pakai refresh tidak pernah 'login' ulang).
+    """
+
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        if response.status_code != 200:
+            return response
+        raw = request.data.get("refresh")
+        if not raw:
+            return response
+        try:
+            token = RefreshToken(raw)
+            user = get_user_model().objects.filter(pk=token.get("user_id")).first()
+            if user and (
+                not user.last_login
+                or user.last_login < timezone.now() - timedelta(hours=12)
+            ):
+                record_user_login(user, request)
+        except Exception:
+            pass
+        return response
 
 
 @extend_schema_view(

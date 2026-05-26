@@ -6,13 +6,19 @@ from ngumpulyuk_app.common.presenters import mini_user
 from ngumpulyuk_app.events.models import Event, EventParticipant
 
 
+def _event_tag_names(ev):
+    prefetched = getattr(ev, "_prefetched_objects_cache", None)
+    if prefetched is not None and "tags" in prefetched:
+        return [t.tag_name for t in ev.tags.all()]
+    return list(ev.tags.values_list("tag_name", flat=True))
+
+
 def event_list_item(ev, is_joined=False):
-    tags = list(ev.tags.values_list("tag_name", flat=True))
+    tags = _event_tag_names(ev)
     creator = ev.creator
     return {
         "id": str(ev.id),
         "title": ev.title,
-        "description": ev.description,
         "category": ev.category,
         "cover_image": ev.cover_image,
         "event_date": ev.event_date.isoformat(),

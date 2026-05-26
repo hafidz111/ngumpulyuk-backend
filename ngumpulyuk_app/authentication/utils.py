@@ -1,7 +1,21 @@
 import random
-from django.core.mail import EmailMessage
-from .models import User, OneTimePassword
+
 from django.conf import settings
+from django.contrib.auth.models import update_last_login
+from django.core.mail import EmailMessage
+
+from .models import OneTimePassword, User
+
+
+def record_user_login(user, request=None):
+    """
+    Perbarui User.last_login setelah autentikasi berhasil.
+    Login JWT tidak memanggil django.contrib.auth.login(), jadi field ini
+    tidak ter-update otomatis tanpa helper ini.
+    """
+    if user is None or not getattr(user, "is_active", True):
+        return
+    update_last_login(sender=type(user), user=user, request=request)
 
 
 def _outgoing_from_email():

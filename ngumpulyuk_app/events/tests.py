@@ -58,3 +58,11 @@ class EventListUpcomingFilterTests(TestCase):
         ids = {e["id"] for e in r.data["data"]["events"]}
         self.assertNotIn(str(self.future.id), ids)
         self.assertIn(str(self.past_stale_status.id), ids)
+
+    def test_list_payload_omits_description_for_lighter_response(self):
+        r = self.client.get("/api/v1/events/?status=upcoming")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        events = r.data["data"]["events"]
+        self.assertGreater(len(events), 0)
+        self.assertNotIn("description", events[0])
+        self.assertIn("title", events[0])

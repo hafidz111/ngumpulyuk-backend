@@ -20,4 +20,6 @@ class GoogleSignInSerializer(serializers.Serializer):
         email=google_user_data['email']
         full_name = f"{google_user_data.get('given_name', '')} {google_user_data.get('family_name', '')}".strip()
         provider = 'google'
-        return register_social_user(provider, email, full_name)
+        return register_social_user(
+            provider, email, full_name, request=self.context.get("request")
+        )

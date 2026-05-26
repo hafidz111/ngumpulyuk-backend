@@ -5,6 +5,7 @@ from google.oauth2 import id_token
 from rest_framework.exceptions import AuthenticationFailed
 
 from ngumpulyuk_app.authentication.models import User
+from ngumpulyuk_app.authentication.utils import record_user_login
 
 
 class Google:
@@ -29,8 +30,11 @@ def _unique_username(base: str) -> str:
     return candidate
 
 
-def login_social_user(email, password):
-    user = authenticate(email=email, password=password)
+def login_social_user(email, password, request=None):
+    user = authenticate(request=request, email=email, password=password)
+    if not user:
+        raise AuthenticationFailed(detail="Login Google gagal.")
+    record_user_login(user, request)
     user_tokens = user.tokens()
     return {
         "email": user.email,
@@ -41,11 +45,13 @@ def login_social_user(email, password):
     }
 
 
-def register_social_user(provider, email, full_name):
+def register_social_user(provider, email, full_name, request=None):
     qs = User.objects.filter(email=email)
     if qs.exists():
         if provider == qs[0].auth_provider:
-            return login_social_user(email, settings.SOCIAL_AUTH_PASSWORD)
+            return login_social_user(
+                email, settings.SOCIAL_AUTH_PASSWORD, request=request
+            )
         raise AuthenticationFailed(detail=f"please continue your login with {qs[0].auth_provider}")
     local = email.split("@")[0]
     username = _unique_username(local)
@@ -58,4 +64,8 @@ def register_social_user(provider, email, full_name):
     register_user.auth_provider = provider
     register_user.is_verified = True
     register_user.save()
-    return login_social_user(email=register_user.email, password=settings.SOCIAL_AUTH_PASSWORD)
+    return login_social_user(
+        email=register_user.email,
+        password=settings.SOCIAL_AUTH_PASSWORD,
+        request=request,
+    )

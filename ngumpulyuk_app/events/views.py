@@ -62,7 +62,7 @@ class EventListCreateView(APIView):
     def get(self, request):
         limit = clamp_limit(request.query_params.get("limit"), 20)
         offset = clamp_offset(request.query_params.get("offset"))
-        qs = Event.objects.select_related("creator").all()
+        qs = Event.objects.select_related("creator").prefetch_related("tags").defer("description")
         category = request.query_params.get("category")
         location = request.query_params.get("location")
         st = request.query_params.get("status")
@@ -96,13 +96,16 @@ class EventListCreateView(APIView):
         else:
             qs = qs.order_by("event_date", "event_time")
         total = qs.count()
-        page = qs[offset : offset + limit]
+        page = list(qs[offset : offset + limit])
+        page_ids = [e.id for e in page]
         joined_event_ids = set()
-        if request.user.is_authenticated:
+        if request.user.is_authenticated and page_ids:
             joined_event_ids = set(
-                EventParticipant.objects.filter(user=request.user, status="confirmed").values_list(
-                    "event_id", flat=True
-                )
+                EventParticipant.objects.filter(
+                    user=request.user,
+                    status="confirmed",
+                    event_id__in=page_ids,
+                ).values_list("event_id", flat=True)
             )
         events = [event_list_item(e, is_joined=e.id in joined_event_ids) for e in page]
         return ok({"events": events, **pagination_meta(total, limit, offset)})
@@ -412,7 +415,11 @@ class EventCategoryListView(APIView):
             "Lainnya"
         ]
 
-        db_categories = list(Event.objects.exclude(category="").values_list("category", flat=True).distinct())
+        db_categories = list(
+            Event.objects.exclude(category="")
+            .values_list("category", flat=True)
+            .distinct()[:200]
+        )
 
         raw_categories = [c for c in (default_categories + db_categories) if c]
 

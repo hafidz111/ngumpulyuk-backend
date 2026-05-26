@@ -7,7 +7,7 @@ from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.contrib.sites.shortcuts import get_current_site
 from django.utils.encoding import smart_str, smart_bytes, force_str
 from django.urls import reverse
-from .utils import send_normal_email
+from .utils import record_user_login, send_normal_email
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from django.conf import settings
 class UserRegisterSerializer(serializers.ModelSerializer):
@@ -63,7 +63,9 @@ class LoginSerializer(serializers.ModelSerializer):
     
         if not user.is_verified:
             raise AuthenticationFailed('Email belum diverifikasi. Cek kotak masuk atau kirim ulang kode OTP.')
-    
+
+        record_user_login(user, request)
+
         user_tokens=user.tokens()
         
         return {
