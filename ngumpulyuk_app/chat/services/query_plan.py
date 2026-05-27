@@ -18,6 +18,16 @@ class ChatQueryPlan:
 
 
 _GREETINGS = ("halo", "hai", "hey", "helo", "hi", "hello", "selamat pagi", "selamat siang", "selamat malam")
+_ACK_HINTS = (
+    "oke",
+    "ok",
+    "sip",
+    "siap",
+    "mantap",
+    "noted",
+    "siapp",
+    "okay",
+)
 
 _FAQ_HINTS = (
     "apa itu ngumpulyuk",
@@ -228,6 +238,9 @@ def plan_chat_query(message_lower: str) -> ChatQueryPlan:
 
     if _is_greeting(m):
         return ChatQueryPlan("greeting")
+
+    if m in _ACK_HINTS:
+        return ChatQueryPlan("ack")
 
     if any(h in m for h in _FAQ_HINTS):
         return ChatQueryPlan("faq")

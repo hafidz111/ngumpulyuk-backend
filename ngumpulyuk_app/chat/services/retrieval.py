@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import timedelta
+import re
+import math
 from typing import List
 
 from django.db.models import Q
@@ -12,6 +14,7 @@ from ngumpulyuk_app.events.querysets import filter_scheduled_upcoming
 from ngumpulyuk_app.events.serializers import event_list_item
 from ngumpulyuk_app.recommendations.views import build_recommendations
 from ngumpulyuk_app.users.models import UserPreferences
+from ngumpulyuk_app.common.indonesia_locations import location_coords, resolve_location
 
 
 def _first_non_empty(*values):
@@ -26,6 +29,74 @@ def _user_preferred_location(user) -> str:
         return (user.preferences_row.preferred_location or "").strip()
     except UserPreferences.DoesNotExist:
         return ""
+
+
+def _extract_requested_place(message_lower: str) -> str:
+    """
+    Ambil frasa lokasi eksplisit dari teks user, contoh:
+    - "event di bandung"
+    - "komunitas dekat jakarta selatan"
+    - "ada event di kota depok gak"
+    """
+    m = (message_lower or "").strip()
+    if not m:
+        return ""
+
+    patterns = [
+        r"(?:di|dekat|deket|sekitar)\s+(?:kota\s+)?([a-z][a-z\s]{2,40})",
+        r"(?:lokasi|area)\s+(?:di\s+)?(?:kota\s+)?([a-z][a-z\s]{2,40})",
+    ]
+    stop_words = {
+        "yang",
+        "buat",
+        "untuk",
+        "event",
+        "komunitas",
+        "circle",
+        "minggu",
+        "weekend",
+        "ini",
+        "dong",
+        "nih",
+        "gak",
+        "ga",
+    }
+    for pat in patterns:
+        found = re.search(pat, m)
+        if not found:
+            continue
+        raw = found.group(1).strip()
+        tokens = [t for t in raw.split() if t and t not in stop_words]
+        cleaned = " ".join(tokens[:4]).strip()
+        if len(cleaned) >= 3:
+            return cleaned
+    return ""
+
+
+def _apply_strict_location_filter(qs, *, place_hint: str):
+    hint = (place_hint or "").strip()
+    if not hint:
+        return qs
+    return qs.filter(
+        Q(location_area__icontains=hint)
+        | Q(location_address__icontains=hint)
+        | Q(title__icontains=hint)
+        | Q(description__icontains=hint)
+    )
+
+
+def _distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    r = 6371.0
+    d_lat = math.radians(lat2 - lat1)
+    d_lon = math.radians(lon2 - lon1)
+    a = (
+        math.sin(d_lat / 2) ** 2
+        + math.cos(math.radians(lat1))
+        * math.cos(math.radians(lat2))
+        * math.sin(d_lon / 2) ** 2
+    )
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return r * c
 
 
 def _community_brief(c: Community, user):
@@ -81,6 +152,7 @@ def fetch_event_cards_by_query(
         qs = qs.filter(event_date__lte=now_date + timedelta(days=7))
 
     pref_loc = _user_preferred_location(user)
+    asked_place = _extract_requested_place(message_lower)
     nearby_keys = ("deket", "dekat", "sekitar", "terdekat", "lokasiku", "lokasi ku", "dekat aku", "deket aku")
     if prefer_nearby or any(k in message_lower for k in nearby_keys):
         if pref_loc:
@@ -89,9 +161,11 @@ def fetch_event_cards_by_query(
                 | Q(location_address__icontains=pref_loc)
                 | Q(title__icontains=pref_loc)
             )
+    if asked_place:
+        qs = _apply_strict_location_filter(qs, place_hint=asked_place)
 
     category_aliases = {
-        "olahraga": ["olahraga", "sport", "sports", "futsal", "badminton", "basket", "lari", "jogging", "yoga", "gym"],
+        "olahraga": ["olahraga", "sport", "sports", "futsal", "badminton", "basket", "lari", "jogging", "yoga", "gym", "voli", "volly", "volleyball"],
         "boardgame": ["board game", "boardgame", "board games", "tabletop", "kotak", "dnd"],
         "gaming": ["gaming", "game", "esport", "e-sport", "mobile legends", "mlbb"],
         "teknologi": ["teknologi", "tech", "coding", "programming", "developer", "ai"],
@@ -124,6 +198,23 @@ def fetch_event_cards_by_query(
     for t in tokens[:6]:
         q |= Q(title__icontains=t) | Q(description__icontains=t) | Q(category__icontains=t) | Q(location_area__icontains=t)
 
+    volleyball_keys = ("voli", "volly", "volleyball")
+    ask_volleyball = any(k in message_lower for k in volleyball_keys)
+    if ask_volleyball:
+        q |= (
+            Q(title__icontains="voli")
+            | Q(title__icontains="volly")
+            | Q(title__icontains="volleyball")
+            | Q(description__icontains="voli")
+            | Q(description__icontains="volly")
+            | Q(description__icontains="volleyball")
+            | Q(category__icontains="voli")
+            | Q(category__icontains="volly")
+            | Q(tags__tag_name__icontains="voli")
+            | Q(tags__tag_name__icontains="volly")
+            | Q(tags__tag_name__icontains="volleyball")
+        )
+
     if q:
         filtered = qs.filter(q).order_by("event_date", "event_time", "-created_at")
         if filtered.exists():
@@ -133,9 +224,37 @@ def fetch_event_cards_by_query(
     else:
         qs = qs.order_by("event_date", "event_time", "-created_at")
 
-    rows = list(qs[:limit])
-    # Last-resort fallback: if user only has self-created events, still show them.
+    rows = list(qs.distinct()[: max(limit * 3, 12)])
+
+    if prefer_nearby:
+        center = None
+        if asked_place:
+            loc = resolve_location(asked_place)
+            if loc:
+                lat = loc.get("latitude")
+                lng = loc.get("longitude")
+                if lat is not None and lng is not None:
+                    center = (float(lat), float(lng))
+        if center is None and pref_loc:
+            center = location_coords(pref_loc)
+        if center is not None:
+            lat0, lon0 = center
+            near_rows = []
+            for ev in rows:
+                if ev.latitude is None or ev.longitude is None:
+                    continue
+                km = _distance_km(lat0, lon0, float(ev.latitude), float(ev.longitude))
+                if km <= 25:
+                    near_rows.append((km, ev))
+            near_rows.sort(key=lambda x: x[0])
+            rows = [ev for _, ev in near_rows[:limit]]
+        else:
+            rows = rows[:limit]
+    else:
+        rows = rows[:limit]
     if not rows:
+        if prefer_nearby or asked_place or ask_volleyball:
+            return []
         qs_self = base_qs
         if any(k in message_lower for k in week_keys):
             qs_self = qs_self.filter(event_date__lte=now_date + timedelta(days=7))
@@ -192,7 +311,7 @@ def fetch_event_cards_for_message(
             prefer_weekend=prefer_weekend,
         )
     )
-    if len(merged) < limit:
+    if len(merged) < limit and not prefer_nearby:
         for card in fetch_event_cards(user, limit):
             merged.append(card)
             if len(merged) >= limit:
@@ -229,7 +348,6 @@ def fetch_community_cards(user, message_lower: str, limit: int = 5):
     if any(k in message_lower for k in active_keys):
         qs = qs.order_by("-member_count", "-created_at")
     else:
-        # filter ringan dari teks (tanpa ML)
         tokens = [t for t in message_lower.replace(",", " ").split() if len(t) > 2]
         if tokens:
             q = Q()
@@ -288,14 +406,15 @@ def fetch_area_cards(user, limit: int = 8, *, prefer_nearby: bool = False):
     uniq = []
     seen = set()
     pref = _user_preferred_location(user).lower()
-    if prefer_nearby and pref:
-        uniq = [a for a in uniq if pref in a.lower()] or uniq
     for a in areas:
         key = (a or "").strip().lower()
         if not key or key in seen:
             continue
         seen.add(key)
         uniq.append(a.strip())
+    if prefer_nearby and pref:
+        near = [a for a in uniq if pref in a.lower()]
+        uniq = near if near else []
     if pref:
         uniq.sort(key=lambda x: (0 if pref in x.lower() else 1, -len(x)))
     else:

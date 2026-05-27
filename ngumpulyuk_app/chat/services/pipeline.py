@@ -56,6 +56,13 @@ def _rule_reply(
         ]
         return random.choice(opts)
 
+    if intent == "ack":
+        opts = [
+            "Siapp, kalau mau lanjut tinggal drop detailnya ya. Misal: event olahraga di Bandung weekend ini.",
+            "Oke gas. Mau gue cariin event, komunitas, atau yang deket lokasimu?",
+        ]
+        return random.choice(opts)
+
     parts: list[str] = []
     if faq_hits and intent in ("faq", "general"):
         skip_generic_faq = intent == "general" and (
@@ -86,7 +93,14 @@ def _rule_reply(
             )
 
     if intent == "event_reco":
-        if plan.prefer_weekend and has_events:
+        ask_volleyball = any(k in message_lower for k in ("voli", "volly", "volleyball"))
+        if ask_volleyball and not has_events:
+            parts.append(
+                "Untuk event voli/volly, sekarang belum ada yang match di data. Coba cek kategori olahraga lain dulu ya, bestie."
+            )
+        elif ask_volleyball and has_events:
+            parts.append("Nih event voli/volly yang ke-detect dari judul/deskripsi. Cek card di bawah ya.")
+        elif plan.prefer_weekend and has_events:
             parts.append("Ini event yang cocok buat weekend ini. Scroll card di bawah.")
         elif any(k in message_lower for k in ("olahraga", "futsal", "badminton", "sport")) and has_events:
             parts.append("Ini opsi olahraga yang masih upcoming. Cek card-nya.")
@@ -198,9 +212,7 @@ def run_chat(*, user, message: str, session_key: str = "") -> dict:
     llm_used = False
     reply = None
     has_grounded_context = bool(event_summaries or community_summaries or area_names)
-    can_use_llm = intent not in ("empty", "greeting") and (
-        has_grounded_context or (intent == "faq" and bool(faq_snippets))
-    )
+    can_use_llm = intent not in ("empty", "greeting") and not faq_hits
     if can_use_llm and getattr(settings, "CHAT_LLM_ENABLED", False) and getattr(settings, "CHAT_GEMINI_API_KEY", None):
         reply = generate_reply(user_prompt_for_model=redacted[:2000], context_text=ctx[:12000])
         llm_used = reply is not None

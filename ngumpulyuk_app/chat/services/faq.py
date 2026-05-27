@@ -7,6 +7,22 @@ from __future__ import annotations
 
 FAQ_ENTRIES = [
     {
+        "id": "how-to-join-generic",
+        "keywords": ("cara bergabung", "bagaimana cara bergabung", "gimana gabung", "cara join"),
+        "aliases": (
+            "bagaimana cara bergabung",
+            "cara bergabung",
+            "gimana cara bergabung",
+            "cara join gimana",
+        ),
+        "title": "Cara bergabung",
+        "answer": (
+            "Kalau mau gabung event, buka detail event lalu tap Join. "
+            "Kalau mau gabung komunitas (circle), buka detail circle lalu tap Gabung. "
+            "Kalau bingung pilih yang mana, bilang aja: event atau komunitas, nanti gue arahin step-by-step."
+        ),
+    },
+    {
         "id": "what-is",
         "keywords": ("apa itu", "ngumpulyuk", "platform", "buat apa", "fungsi app"),
         "aliases": (
@@ -246,11 +262,28 @@ FAQ_ENTRIES = [
         "aliases": (
             "cara gabung circle",
             "gimana join komunitas",
+            "cara gabung komunitas bagaimana",
+            "cara gabung komunitas",
         ),
         "title": "Gabung komunitas",
         "answer": (
-            "Buka halaman Komunitas, pilih circle di bagian Explore, terus tap Gabung. "
-            "Setelah join, kamu bisa spill di thread circle itu dan lihat member lain."
+            "Buka detail circle yang kamu mau, lalu tap Gabung. "
+            "Setelah join, kamu bisa spill thread di circle itu dan lihat member lain."
+        ),
+    },
+    {
+        "id": "see-members",
+        "keywords": ("lihat member", "member lain", "anggota komunitas", "daftar member"),
+        "aliases": (
+            "bagaimana cara lihat member lain",
+            "cara lihat member lain",
+            "lihat member komunitas",
+            "cek anggota komunitas",
+        ),
+        "title": "Lihat member komunitas",
+        "answer": (
+            "Masuk ke halaman detail circle, lalu scroll ke bagian Member/Anggota. "
+            "Di situ kamu bisa lihat siapa aja yang join komunitas itu."
         ),
     },
     {
@@ -351,7 +384,6 @@ FAQ_ENTRIES = [
 ]
 
 
-# Backward-compatible alias map (admin template API).
 CANONICAL_ALIASES = {e["id"]: tuple(e.get("aliases") or ()) for e in FAQ_ENTRIES if e.get("aliases")}
 
 
@@ -397,7 +429,6 @@ def match_faq(message_lower: str, limit: int = 3):
     if not m:
         return []
 
-    # Alias match: prefer longest alias (most specific).
     alias_hits: list[tuple[int, dict]] = []
     for entry in FAQ_ENTRIES:
         for alias in entry.get("aliases") or ():
