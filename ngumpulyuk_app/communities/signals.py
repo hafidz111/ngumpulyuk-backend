@@ -10,5 +10,5 @@ def add_community_creator_as_admin(sender, instance, created, **kwargs):
         CommunityMember.objects.get_or_create(
             community=instance,
             user=instance.creator,
-            defaults={"role": "admin"},
+            defaults={"role": "owner"},
         )

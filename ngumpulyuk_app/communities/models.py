@@ -39,6 +39,7 @@ class CommunityMember(models.Model):
         max_length=20,
         default="member",
         choices=[
+            ("owner", "owner"),
             ("admin", "admin"),
             ("moderator", "moderator"),
             ("member", "member"),

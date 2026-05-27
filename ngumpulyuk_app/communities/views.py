@@ -62,7 +62,7 @@ def community_dict(c, request_user, detail=False):
         m = CommunityMember.objects.filter(community=c, user=request_user).first()
         if m:
             is_member = True
-            user_role = m.role
+            user_role = "owner" if request_user.id == c.creator_id else m.role
     base = {
         "id": str(c.id),
         "name": c.name,
@@ -215,6 +215,12 @@ class CommunityListCreateView(APIView):
         parameters=[path_uuid("id", "ID komunitas")],
         responses=R200,
     ),
+    delete=extend_schema(
+        tags=COMMUNITIES_TAG,
+        summary="Hapus komunitas (creator saja)",
+        parameters=[path_uuid("id", "ID komunitas")],
+        responses=R200,
+    ),
 )
 class CommunityDetailView(APIView):
     permission_classes = [AllowAny]
@@ -226,6 +232,30 @@ class CommunityDetailView(APIView):
             return err("NOT_FOUND", "Community not found", status.HTTP_404_NOT_FOUND)
         user = request.user if request.user.is_authenticated else None
         return ok(community_dict(c, user, detail=True))
+
+    def delete(self, request, id):
+        if not request.user.is_authenticated:
+            return err("UNAUTHORIZED", "Authentication required", status.HTTP_401_UNAUTHORIZED)
+        try:
+            c = Community.objects.get(pk=id)
+        except Community.DoesNotExist:
+            return err("NOT_FOUND", "Community not found", status.HTTP_404_NOT_FOUND)
+        if c.creator_id != request.user.id:
+            return err(
+                "FORBIDDEN",
+                "Hanya pembuat komunitas yang dapat menghapus circle ini.",
+                status.HTTP_403_FORBIDDEN,
+            )
+        name = c.name
+        c.delete()
+        ActivityHistory.objects.create(
+            user=request.user,
+            activity_type="deleted_community",
+            description=f"Deleted community: {name}",
+            related_type="community",
+            related_id=id,
+        )
+        return ok(message="Community deleted successfully")
 
 
 @extend_schema_view(
@@ -277,6 +307,12 @@ class CommunityLeaveView(APIView):
             c = Community.objects.get(pk=id)
         except Community.DoesNotExist:
             return err("NOT_FOUND", "Community not found", status.HTTP_404_NOT_FOUND)
+        if c.creator_id == request.user.id:
+            return err(
+                "FORBIDDEN",
+                "Pembuat circle tidak bisa keluar. Hapus circle jika ingin menutup komunitas.",
+                status.HTTP_403_FORBIDDEN,
+            )
         memberships = CommunityMember.objects.filter(community=c, user=request.user)
         if not memberships.exists():
             return err("VALIDATION_ERROR", "Not a member", status.HTTP_400_BAD_REQUEST)
