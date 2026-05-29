@@ -47,3 +47,15 @@ def mini_user_creator(u):
         "id": str(u.id),
         "username": u.username,
     }
+
+
+def mini_user_event_participant(u):
+    """Ringan untuk daftar peserta event — tanpa query interest per user."""
+    if not u:
+        return None
+    return {
+        "id": str(u.id),
+        "username": u.username,
+        "full_name": u.full_name,
+        "profile_picture": u.profile_picture,
+    }

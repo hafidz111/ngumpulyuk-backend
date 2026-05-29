@@ -1,7 +1,9 @@
+import logging
+import threading
 from datetime import datetime, time
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import status
@@ -13,7 +15,12 @@ from ngumpulyuk_app.common.openapi_params import path_uuid, q_int, q_str
 from ngumpulyuk_app.common.openapi_responses import R200, R201
 from ngumpulyuk_app.common.presenters import clamp_limit, clamp_offset, pagination_meta
 from ngumpulyuk_app.events.models import Event, EventParticipant, EventTag
-from ngumpulyuk_app.events.querysets import filter_scheduled_past, filter_scheduled_upcoming
+from ngumpulyuk_app.events.querysets import (
+    event_has_passed,
+    filter_event_search,
+    filter_scheduled_past,
+    filter_scheduled_upcoming,
+)
 from ngumpulyuk_app.events.serializers import EventWriteSerializer, event_detail, event_list_item
 from ngumpulyuk_app.notifications.notify import (
     notify_event_full,
@@ -25,12 +32,35 @@ from ngumpulyuk_app.recommendations.services import record_recommendation_signal
 from ngumpulyuk_app.users.models import ActivityHistory
 
 EVENTS_TAG = ["Events"]
+logger = logging.getLogger(__name__)
+_PARTICIPANT_PREVIEW_LIMIT = 12
+
+
+def _record_event_view_signal_async(user_id, event_id) -> None:
+    """Catat sinyal view di background agar tidak menahan respons detail."""
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+    try:
+        user = User.objects.get(pk=user_id)
+        ev = Event.objects.only("id", "creator_id").get(pk=event_id)
+        if user.pk == ev.creator_id:
+            return
+        record_recommendation_signal(
+            user=user,
+            event=ev,
+            signal_type="view",
+            source="event_detail",
+            dedupe_minutes=10,
+        )
+    except Exception:
+        logger.exception("Failed to record event view signal for event %s", event_id)
 
 _EVENT_LIST_PARAMS = [
     q_str("category", "Filter kategori"),
     q_str("location", "Filter area lokasi (mencocokkan location_area)"),
     q_str("status", "upcoming | past | ongoing | completed | cancelled"),
-    q_str("search", "Cari di judul / deskripsi"),
+    q_str("search", "Cari di judul, deskripsi, kategori, lokasi, tag"),
     q_str("date_from", "Tanggal mulai filter (YYYY-MM-DD)"),
     q_str("date_to", "Tanggal akhir filter (YYYY-MM-DD)"),
     q_str("sort", "date_asc | date_desc | popular | newest (default: date_asc)"),
@@ -82,7 +112,7 @@ class EventListCreateView(APIView):
             else:
                 qs = qs.filter(status=st)
         if search:
-            qs = qs.filter(Q(title__icontains=search) | Q(description__icontains=search))
+            qs = filter_event_search(qs, search)
         if date_from:
             qs = qs.filter(event_date__gte=date_from)
         if date_to:
@@ -184,8 +214,24 @@ class EventDetailView(APIView):
         return [AllowAny()]
 
     def get_object(self, pk):
+        participant_qs = (
+            EventParticipant.objects.filter(status="confirmed")
+            .select_related("user")
+            .order_by("joined_at")[:_PARTICIPANT_PREVIEW_LIMIT]
+        )
         try:
-            return Event.objects.select_related("creator").get(pk=pk)
+            return (
+                Event.objects.select_related("creator")
+                .prefetch_related(
+                    "tags",
+                    Prefetch(
+                        "participants",
+                        queryset=participant_qs,
+                        to_attr="preview_participants",
+                    ),
+                )
+                .get(pk=pk)
+            )
         except Event.DoesNotExist:
             return None
 
@@ -195,13 +241,11 @@ class EventDetailView(APIView):
             return err("NOT_FOUND", "Event not found", status.HTTP_404_NOT_FOUND)
         user = request.user if request.user.is_authenticated else None
         if user and user.id != ev.creator_id:
-            record_recommendation_signal(
-                user=user,
-                event=ev,
-                signal_type="view",
-                source="event_detail",
-                dedupe_minutes=10,
-            )
+            threading.Thread(
+                target=_record_event_view_signal_async,
+                args=(user.pk, ev.pk),
+                daemon=True,
+            ).start()
         return ok(event_detail(ev, user))
 
     def put(self, request, id):
@@ -279,6 +323,8 @@ class EventJoinView(APIView):
             ev = Event.objects.get(pk=id)
         except Event.DoesNotExist:
             return err("NOT_FOUND", "Event not found", status.HTTP_404_NOT_FOUND)
+        if event_has_passed(ev):
+            return err("REGISTRATION_CLOSED", "Event registration is closed", status.HTTP_409_CONFLICT)
         ep = EventParticipant.objects.filter(event=ev, user=request.user).first()
         if ep and ep.status == "confirmed":
             return err("ALREADY_JOINED", "Already joined", status.HTTP_409_CONFLICT)
@@ -336,6 +382,12 @@ class EventLeaveView(APIView):
             ev = Event.objects.get(pk=id)
         except Event.DoesNotExist:
             return err("NOT_FOUND", "Event not found", status.HTTP_404_NOT_FOUND)
+        if event_has_passed(ev):
+            return err(
+                "EVENT_ENDED",
+                "Cannot cancel participation for a past event",
+                status.HTTP_409_CONFLICT,
+            )
         qs = EventParticipant.objects.filter(event=ev, user=request.user)
         if not qs.exists():
             return err("CONFLICT", "Not a participant", status.HTTP_409_CONFLICT)

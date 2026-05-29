@@ -27,3 +27,26 @@ def filter_scheduled_upcoming(qs, *, today=None):
 def filter_scheduled_past(qs, *, today=None):
     """Event yang tanggalnya sudah lewat (termasuk status upcoming yang belum di-update)."""
     return qs.filter(event_has_passed_q(today=today))
+
+
+def filter_event_search(qs, search: str):
+    """Cari di judul, deskripsi, kategori, lokasi, dan tag."""
+    term = (search or "").strip()
+    if not term:
+        return qs
+    return qs.filter(
+        Q(title__icontains=term)
+        | Q(description__icontains=term)
+        | Q(category__icontains=term)
+        | Q(location_area__icontains=term)
+        | Q(location_address__icontains=term)
+        | Q(tags__tag_name__icontains=term)
+    ).distinct()
+
+
+def event_has_passed(ev, *, today=None) -> bool:
+    """True jika tanggal event sudah lewat (abaikan status DB yang belum di-update)."""
+    today = today or timezone.localdate()
+    if ev.end_date is not None:
+        return ev.end_date < today
+    return ev.event_date < today

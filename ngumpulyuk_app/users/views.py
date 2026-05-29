@@ -29,6 +29,25 @@ User = get_user_model()
 USERS_TAG = ["Users"]
 
 
+def _participation_event_item(event, *, joined_at=None):
+    return {
+        "id": str(event.id),
+        "title": event.title,
+        "status": event.status,
+        "category": event.category,
+        "event_date": event.event_date.isoformat(),
+        "event_time": event.event_time.strftime("%H:%M:%S") if event.event_time else None,
+        "end_date": event.end_date.isoformat() if event.end_date else None,
+        "location_area": event.location_area,
+        "location_address": event.location_address,
+        **(
+            {"joined_at": joined_at.isoformat().replace("+00:00", "Z")}
+            if joined_at is not None
+            else {}
+        ),
+    }
+
+
 @extend_schema_view(
     get=extend_schema(tags=USERS_TAG, summary="Profil saya", responses=R200),
     put=extend_schema(
@@ -240,21 +259,11 @@ class ParticipationSummaryView(APIView):
                 "joined_communities_count": community_qs.count(),
                 "events_created_count": created_events_qs.count(),
                 "active_events": [
-                    {
-                        "id": str(p.event_id),
-                        "title": p.event.title,
-                        "status": p.event.status,
-                        "joined_at": p.joined_at.isoformat().replace("+00:00", "Z"),
-                    }
+                    _participation_event_item(p.event, joined_at=p.joined_at)
                     for p in active_participants
                 ],
                 "past_events": [
-                    {
-                        "id": str(p.event_id),
-                        "title": p.event.title,
-                        "status": p.event.status,
-                        "joined_at": p.joined_at.isoformat().replace("+00:00", "Z"),
-                    }
+                    _participation_event_item(p.event, joined_at=p.joined_at)
                     for p in past_participants
                 ],
                 "joined_communities": [

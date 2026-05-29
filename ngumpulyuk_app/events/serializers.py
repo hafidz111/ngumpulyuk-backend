@@ -2,7 +2,7 @@ from datetime import datetime
 
 from rest_framework import serializers
 
-from ngumpulyuk_app.common.presenters import mini_user
+from ngumpulyuk_app.common.presenters import mini_user, mini_user_event_participant
 from ngumpulyuk_app.events.models import Event, EventParticipant
 
 
@@ -46,19 +46,31 @@ def event_list_item(ev, is_joined=False):
     }
 
 
+_PARTICIPANT_PREVIEW_LIMIT = 12
+
+
 def event_detail(ev, request_user=None):
-    tags = list(ev.tags.values_list("tag_name", flat=True))
-    participants_qs = (
-        EventParticipant.objects.filter(event=ev, status="confirmed")
-        .select_related("user")
-        .order_by("joined_at")
-    )
-    participants = [mini_user(p.user) for p in participants_qs]
+    tags = _event_tag_names(ev)
+    preview_rows = getattr(ev, "preview_participants", None)
+    if preview_rows is not None:
+        participants = [mini_user_event_participant(p.user) for p in preview_rows]
+    else:
+        participants_qs = (
+            EventParticipant.objects.filter(event=ev, status="confirmed")
+            .select_related("user")
+            .order_by("joined_at")[:_PARTICIPANT_PREVIEW_LIMIT]
+        )
+        participants = [mini_user_event_participant(p.user) for p in participants_qs]
+
     is_joined = False
     if request_user and request_user.is_authenticated:
-        is_joined = EventParticipant.objects.filter(
-            event=ev, user=request_user, status="confirmed"
-        ).exists()
+        uid = request_user.pk
+        if preview_rows is not None:
+            is_joined = any(p.user_id == uid for p in preview_rows)
+        if not is_joined:
+            is_joined = EventParticipant.objects.filter(
+                event_id=ev.pk, user_id=uid, status="confirmed"
+            ).exists()
     c = ev.creator
     return {
         "id": str(ev.id),
